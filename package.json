@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "validate": "pnpm lint && pnpm type-check && pnpm format:check"
+    "validate": "pnpm lint && pnpm type-check && pnpm format:check",
+    "migrate:postgres": "prisma migrate dev --name init_postgres"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

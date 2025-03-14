@@ -5,10 +5,7 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-// This is a temporary solution until we properly integrate with D1
-const adapter = null; // Disable adapter in development
-
-export const prisma = global.prisma || new PrismaClient({ adapter });
+export const prisma = global.prisma || new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
   global.prisma = prisma;
