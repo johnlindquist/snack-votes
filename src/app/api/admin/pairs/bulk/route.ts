@@ -3,14 +3,21 @@ import { prisma } from '@/lib/db';
 import { isAdmin } from '@/app/api/auth';
 
 export async function POST(request: Request) {
+  console.log('POST /api/admin/pairs/bulk request received');
   try {
-    if (!(await isAdmin())) {
+    const isAdminUser = await isAdmin();
+    console.log('isAdmin check result:', isAdminUser);
+    if (!isAdminUser) {
+      console.log('Unauthorized access attempt to POST /api/admin/pairs/bulk');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { pairsText } = await request.json();
+    const body = await request.json();
+    console.log('Request body:', body);
+    const { pairsText } = body;
 
     if (!pairsText) {
+      console.log('No pairsText provided in request body');
       return NextResponse.json({ error: 'No text provided' }, { status: 400 });
     }
 
@@ -18,6 +25,8 @@ export async function POST(request: Request) {
     const groups = pairsText
       .split(/\n\s*\n/) // Split on empty lines
       .filter(Boolean); // Remove empty groups
+
+    console.log(`Parsed ${groups.length} groups from input text`);
 
     // Process each group into a pair
     const pairs = groups.map((group: string) => {
@@ -31,7 +40,10 @@ export async function POST(request: Request) {
       };
     });
 
+    console.log(`Created ${pairs.length} pair objects:`, pairs);
+
     // Create all pairs in the database
+    console.log('Creating pairs in database');
     const result = await prisma.$transaction(
       pairs.map((pair: { optionA: string; optionB: string }) =>
         prisma.pair.create({
@@ -42,6 +54,8 @@ export async function POST(request: Request) {
         }),
       ),
     );
+
+    console.log(`Successfully created ${result.length} pairs in database`);
 
     return NextResponse.json({ pairs: result });
   } catch (error) {

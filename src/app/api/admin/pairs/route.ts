@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import { prisma } from '@/lib/db';
+import { isAdmin } from '@/app/api/auth';
 
-// For this simple project, assume admin authentication is done via headers
-async function isAdmin(request: Request) {
-  const auth = request.headers.get('authorization');
-  return auth === 'Basic myplainTextAdminCreds';
-}
-
-export async function GET(request: Request) {
-  if (!(await isAdmin(request))) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export async function GET(_request: Request) {
+  console.log('GET /api/admin/pairs request received');
   try {
+    const isAdminUser = await isAdmin();
+    console.log('isAdmin check result:', isAdminUser);
+    if (!isAdminUser) {
+      console.log('Unauthorized access attempt to GET /api/admin/pairs');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('Fetching pairs from database');
     const pairs = await prisma.pair.findMany({
       include: { votes: true },
     });
+    console.log(`Successfully fetched ${pairs.length} pairs`);
     return NextResponse.json(pairs);
   } catch (error) {
     console.error('Error fetching pairs:', error);
@@ -27,23 +28,32 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!(await isAdmin(request))) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  console.log('POST /api/admin/pairs request received');
   try {
-    const { optionA, optionB } = await request.json();
+    const isAdminUser = await isAdmin();
+    console.log('isAdmin check result:', isAdminUser);
+    if (!isAdminUser) {
+      console.log('Unauthorized access attempt to POST /api/admin/pairs');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    console.log('Request body:', body);
+    const { optionA, optionB } = body;
 
     if (!optionA || !optionB) {
+      console.log('Missing required fields in request body');
       return NextResponse.json(
         { error: 'Both options are required' },
         { status: 400 },
       );
     }
 
+    console.log('Creating new pair:', { optionA, optionB });
     const newPair = await prisma.pair.create({
       data: { optionA, optionB },
     });
+    console.log('New pair created:', newPair);
 
     return NextResponse.json(newPair, { status: 201 });
   } catch (error) {

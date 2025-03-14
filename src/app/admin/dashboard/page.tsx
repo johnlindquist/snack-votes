@@ -31,6 +31,7 @@ type Voter = {
 };
 
 export default function Dashboard() {
+  console.log('Dashboard component rendering');
   const router = useRouter();
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [voters, setVoters] = useState<Voter[]>([]);
@@ -40,108 +41,199 @@ export default function Dashboard() {
   const [bulkImportError, setBulkImportError] = useState('');
 
   const handleSignOut = useCallback(() => {
+    console.log('Signing out user');
     sessionStorage.removeItem('adminSession');
     router.push('/admin/login');
   }, [router]);
 
   useEffect(() => {
+    console.log('Running auth check effect');
     const checkAuth = async () => {
       try {
+        console.log('Checking authentication');
         const sessionData = sessionStorage.getItem('adminSession');
+        console.log('Session data:', sessionData);
         if (!sessionData) {
+          console.log('No session data found, signing out');
           handleSignOut();
           return;
         }
         const { authToken } = JSON.parse(sessionData);
+        console.log('Auth token found:', authToken);
         const response = await fetch('/api/admin/auth', {
           method: 'GET',
           headers: {
             Authorization: authToken,
           },
         });
+        console.log('Auth API response status:', response.status);
         if (!response.ok) {
+          console.log('Auth API response not OK, signing out');
           handleSignOut();
+        } else {
+          console.log('Authentication successful');
         }
-      } catch (_error) {
+      } catch (error) {
+        console.error('Error during auth check:', error);
         handleSignOut();
       }
     };
     checkAuth();
   }, [handleSignOut, router]);
 
+  useEffect(() => {
+    console.log('Running data fetch effect');
+    const fetchData = async () => {
+      console.log('Fetching data');
+      try {
+        await Promise.all([fetchPairs(), fetchVoters()]);
+        console.log('Data fetch complete');
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+    fetchData();
+  }, []);
+
   const fetchPairs = async () => {
+    console.log('Fetching pairs');
     const sessionData = sessionStorage.getItem('adminSession');
-    if (!sessionData) return;
-    const { authToken } = JSON.parse(sessionData);
-    const res = await fetch('/api/admin/pairs', {
-      headers: { Authorization: authToken },
-    });
-    const data = await res.json();
-    setPairs(data);
+    if (!sessionData) {
+      console.log('No session data found when fetching pairs');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for pairs fetch:', authToken);
+      const res = await fetch('/api/admin/pairs', {
+        headers: { Authorization: authToken },
+      });
+      console.log('Pairs API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to fetch pairs:', res.statusText);
+        return;
+      }
+      const data = await res.json();
+      console.log('Pairs data received:', data);
+      setPairs(data);
+      console.log('Pairs state updated');
+    } catch (error) {
+      console.error('Error in fetchPairs:', error);
+    }
   };
 
   const fetchVoters = async () => {
+    console.log('Fetching voters');
     const sessionData = sessionStorage.getItem('adminSession');
-    if (!sessionData) return;
-    const { authToken } = JSON.parse(sessionData);
-    const res = await fetch('/api/admin/voters', {
-      headers: { Authorization: authToken },
-    });
-    const data = await res.json();
-    setVoters(data);
+    if (!sessionData) {
+      console.log('No session data found when fetching voters');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for voters fetch:', authToken);
+      const res = await fetch('/api/admin/voters', {
+        headers: { Authorization: authToken },
+      });
+      console.log('Voters API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to fetch voters:', res.statusText);
+        return;
+      }
+      const data = await res.json();
+      console.log('Voters data received:', data);
+      setVoters(data);
+      console.log('Voters state updated');
+    } catch (error) {
+      console.error('Error in fetchVoters:', error);
+    }
   };
 
   const handleAddPair = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Adding pair:', { optionA, optionB });
     const sessionData = sessionStorage.getItem('adminSession');
-    if (!sessionData) return;
-    const { authToken } = JSON.parse(sessionData);
-    await fetch('/api/admin/pairs', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authToken,
-      },
-      body: JSON.stringify({ optionA, optionB }),
-    });
-    setOptionA('');
-    setOptionB('');
-    fetchPairs();
+    if (!sessionData) {
+      console.log('No session data found when adding pair');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for add pair:', authToken);
+      const res = await fetch('/api/admin/pairs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authToken,
+        },
+        body: JSON.stringify({ optionA, optionB }),
+      });
+      console.log('Add pair API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to add pair:', res.statusText);
+        return;
+      }
+      setOptionA('');
+      setOptionB('');
+      console.log('Pair added successfully, fetching updated pairs');
+      fetchPairs();
+    } catch (error) {
+      console.error('Error in handleAddPair:', error);
+    }
   };
 
   const handleDeleteVoter = async (voterId: number) => {
+    console.log('Deleting voter:', voterId);
     if (
       !confirm(
         'Are you sure you want to delete this voter and all their votes?',
       )
     ) {
+      console.log('Voter deletion cancelled by user');
       return;
     }
 
     const sessionData = sessionStorage.getItem('adminSession');
-    if (!sessionData) return;
-    const { authToken } = JSON.parse(sessionData);
-    const res = await fetch(`/api/admin/voters/${voterId}`, {
-      method: 'DELETE',
-      headers: { Authorization: authToken },
-    });
+    if (!sessionData) {
+      console.log('No session data found when deleting voter');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for delete voter:', authToken);
+      const res = await fetch(`/api/admin/voters/${voterId}`, {
+        method: 'DELETE',
+        headers: { Authorization: authToken },
+      });
+      console.log('Delete voter API response status:', res.status);
 
-    if (res.ok) {
-      fetchVoters();
-      fetchPairs(); // Refresh pairs to update vote counts
-    } else {
-      alert('Failed to delete voter');
+      if (res.ok) {
+        console.log('Voter deleted successfully, refreshing data');
+        fetchVoters();
+        fetchPairs(); // Refresh pairs to update vote counts
+      } else {
+        console.error('Failed to delete voter:', res.statusText);
+        alert('Failed to delete voter');
+      }
+    } catch (error) {
+      console.error('Error in handleDeleteVoter:', error);
     }
   };
 
   const handleBulkImport = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Bulk importing pairs');
     setBulkImportError('');
 
     try {
       const sessionData = sessionStorage.getItem('adminSession');
-      if (!sessionData) return;
+      if (!sessionData) {
+        console.log('No session data found when bulk importing');
+        return;
+      }
       const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for bulk import:', authToken);
+      console.log('Bulk import text:', bulkPairsText);
       const res = await fetch('/api/admin/pairs/bulk', {
         method: 'POST',
         headers: {
@@ -150,15 +242,19 @@ export default function Dashboard() {
         },
         body: JSON.stringify({ pairsText: bulkPairsText }),
       });
+      console.log('Bulk import API response status:', res.status);
 
       if (!res.ok) {
         const error = await res.json();
+        console.error('Bulk import failed:', error);
         throw new Error(error.error || 'Failed to import pairs');
       }
 
+      console.log('Bulk import successful');
       setBulkPairsText('');
       fetchPairs();
     } catch (error) {
+      console.error('Error in handleBulkImport:', error);
       setBulkImportError(
         error instanceof Error ? error.message : 'Failed to import pairs',
       );
@@ -166,26 +262,41 @@ export default function Dashboard() {
   };
 
   const handleDeletePair = async (pairId: number) => {
+    console.log('Deleting pair:', pairId);
     if (
       !confirm('Are you sure you want to delete this pair and all its votes?')
     ) {
+      console.log('Pair deletion cancelled by user');
       return;
     }
 
     const sessionData = sessionStorage.getItem('adminSession');
-    if (!sessionData) return;
-    const { authToken } = JSON.parse(sessionData);
-    const res = await fetch(`/api/admin/pairs/${pairId}`, {
-      method: 'DELETE',
-      headers: { Authorization: authToken },
-    });
+    if (!sessionData) {
+      console.log('No session data found when deleting pair');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for delete pair:', authToken);
+      const res = await fetch(`/api/admin/pairs/${pairId}`, {
+        method: 'DELETE',
+        headers: { Authorization: authToken },
+      });
+      console.log('Delete pair API response status:', res.status);
 
-    if (res.ok) {
-      fetchPairs();
-    } else {
-      alert('Failed to delete pair');
+      if (res.ok) {
+        console.log('Pair deleted successfully, refreshing pairs');
+        fetchPairs();
+      } else {
+        console.error('Failed to delete pair:', res.statusText);
+        alert('Failed to delete pair');
+      }
+    } catch (error) {
+      console.error('Error in handleDeletePair:', error);
     }
   };
+
+  console.log('Current state - pairs:', pairs.length, 'voters:', voters.length);
 
   return (
     <div className="mx-auto max-w-6xl p-4">
@@ -269,7 +380,7 @@ export default function Dashboard() {
                           {pair.optionA} vs {pair.optionB}
                         </p>
                         <p>
-                          Votes for {pair.optionA}:{' '}
+                          {pair.optionA}:{' '}
                           {
                             pair.votes.filter(
                               (v) => v.selection === pair.optionA,
@@ -277,7 +388,7 @@ export default function Dashboard() {
                           }
                         </p>
                         <p>
-                          Votes for {pair.optionB}:{' '}
+                          {pair.optionB}:{' '}
                           {
                             pair.votes.filter(
                               (v) => v.selection === pair.optionB,
