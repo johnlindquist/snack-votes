@@ -8,14 +8,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { text } = await request.json();
+    const { pairsText } = await request.json();
 
-    if (!text) {
+    if (!pairsText) {
       return NextResponse.json({ error: 'No text provided' }, { status: 400 });
     }
 
     // Split the text into groups of two lines
-    const groups = text
+    const groups = pairsText
       .split(/\n\s*\n/) // Split on empty lines
       .filter(Boolean); // Remove empty groups
 

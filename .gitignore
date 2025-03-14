@@ -52,3 +52,4 @@ prisma/*.db-journal
 
 # Prisma
 prisma/migrations/
+.env*.local
