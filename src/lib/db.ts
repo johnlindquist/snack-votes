@@ -6,10 +6,7 @@ declare global {
 }
 
 // This is a temporary solution until we properly integrate with D1
-const adapter =
-  process.env.NODE_ENV === 'production'
-    ? undefined // We'll set this up in the API routes
-    : undefined;
+const adapter = null; // Disable adapter in development
 
 export const prisma = global.prisma || new PrismaClient({ adapter });
 
