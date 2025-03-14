@@ -12,11 +12,11 @@ export default function AdminLogin() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if already logged in
-    if (sessionStorage.getItem('adminSession')) {
+    const session = sessionStorage.getItem('adminSession');
+    if (session) {
       router.push('/admin/dashboard');
     }
-  }, []);
+  }, [router]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +25,7 @@ export default function AdminLogin() {
       // Store session data with timestamp
       const session = {
         timestamp: new Date().toISOString(),
-        isAuthenticated: true
+        isAuthenticated: true,
       };
       sessionStorage.setItem('adminSession', JSON.stringify(session));
       router.push('/admin/dashboard');
@@ -35,35 +35,39 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16">
+    <div className="mx-auto mt-16 max-w-md">
       <Card>
         <Header title="Admin" showAdminLink={false} showHomeLink={true} />
-        
+
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Username</label>
-              <input 
-                type="text" 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
-                className="border border-slate-200 p-3 w-full rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              <label className="block text-sm font-medium text-slate-700">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-purple-500"
                 required
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Password</label>
-              <input 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                className="border border-slate-200 p-3 w-full rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              <label className="block text-sm font-medium text-slate-700">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-purple-500"
                 required
               />
             </div>
-            <Button 
-              type="submit" 
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg font-medium"
+            <Button
+              type="submit"
+              className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 py-3 font-medium hover:from-purple-700 hover:to-indigo-700"
             >
               Log In
             </Button>
@@ -72,4 +76,4 @@ export default function AdminLogin() {
       </Card>
     </div>
   );
-} 
+}

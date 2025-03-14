@@ -4,7 +4,7 @@ import { isAdmin } from '@/app/api/auth';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     if (!(await isAdmin())) {
@@ -25,7 +25,7 @@ export async function DELETE(
     console.error('Error deleting voter:', error);
     return NextResponse.json(
       { error: 'Failed to delete voter' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -7,7 +7,9 @@ interface CardProps {
 
 export function Card({ children, className = '' }: CardProps) {
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-100 p-6 transition-all hover:shadow-md ${className}`}>
+    <div
+      className={`rounded-xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:shadow-md ${className}`}
+    >
       {children}
     </div>
   );
@@ -19,11 +21,7 @@ interface CardHeaderProps {
 }
 
 export function CardHeader({ children, className = '' }: CardHeaderProps) {
-  return (
-    <div className={`mb-5 ${className}`}>
-      {children}
-    </div>
-  );
+  return <div className={`mb-5 ${className}`}>{children}</div>;
 }
 
 interface CardContentProps {
@@ -32,11 +30,7 @@ interface CardContentProps {
 }
 
 export function CardContent({ children, className = '' }: CardContentProps) {
-  return (
-    <div className={className}>
-      {children}
-    </div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 interface CardFooterProps {
@@ -45,9 +39,5 @@ interface CardFooterProps {
 }
 
 export function CardFooter({ children, className = '' }: CardFooterProps) {
-  return (
-    <div className={`mt-6 ${className}`}>
-      {children}
-    </div>
-  );
-} 
+  return <div className={`mt-6 ${className}`}>{children}</div>;
+}

@@ -39,8 +39,8 @@ export async function POST(request: Request) {
             optionA: pair.optionA,
             optionB: pair.optionB,
           },
-        })
-      )
+        }),
+      ),
     );
 
     return NextResponse.json({ pairs: result });
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     console.error('Error creating pairs:', error);
     return NextResponse.json(
       { error: 'Failed to create pairs' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

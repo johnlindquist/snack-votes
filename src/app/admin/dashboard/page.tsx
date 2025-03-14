@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,42 +38,31 @@ export default function Dashboard() {
   const [optionB, setOptionB] = useState('');
   const [bulkPairsText, setBulkPairsText] = useState('');
   const [bulkImportError, setBulkImportError] = useState('');
-  
-  useEffect(() => {
-    // Check for valid admin session
-    const session = sessionStorage.getItem('adminSession');
-    if (!session) {
-      router.push('/admin/login');
-      return;
-    }
 
-    // Optional: Check session age
-    try {
-      const { timestamp } = JSON.parse(session);
-      const sessionAge = new Date().getTime() - new Date(timestamp).getTime();
-      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-      
-      if (sessionAge > maxAge) {
-        handleSignOut();
-        return;
-      }
-    } catch (error) {
-      handleSignOut();
-      return;
-    }
-
-    fetchPairs();
-    fetchVoters();
-  }, []);
-
-  const handleSignOut = () => {
+  const handleSignOut = useCallback(() => {
     sessionStorage.removeItem('adminSession');
     router.push('/admin/login');
-  };
+  }, [router]);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/admin/auth', {
+          method: 'GET',
+        });
+        if (!response.ok) {
+          handleSignOut();
+        }
+      } catch (_error) {
+        handleSignOut();
+      }
+    };
+    checkAuth();
+  }, [handleSignOut, router]);
 
   const fetchPairs = async () => {
     const res = await fetch('/api/admin/pairs', {
-      headers: { Authorization: 'Basic myplainTextAdminCreds' }
+      headers: { Authorization: 'Basic myplainTextAdminCreds' },
     });
     const data = await res.json();
     setPairs(data);
@@ -81,21 +70,21 @@ export default function Dashboard() {
 
   const fetchVoters = async () => {
     const res = await fetch('/api/admin/voters', {
-      headers: { Authorization: 'Basic myplainTextAdminCreds' }
+      headers: { Authorization: 'Basic myplainTextAdminCreds' },
     });
     const data = await res.json();
     setVoters(data);
   };
-  
+
   const handleAddPair = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('/api/admin/pairs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Basic myplainTextAdminCreds'
+        Authorization: 'Basic myplainTextAdminCreds',
       },
-      body: JSON.stringify({ optionA, optionB })
+      body: JSON.stringify({ optionA, optionB }),
     });
     setOptionA('');
     setOptionB('');
@@ -103,13 +92,17 @@ export default function Dashboard() {
   };
 
   const handleDeleteVoter = async (voterId: number) => {
-    if (!confirm('Are you sure you want to delete this voter and all their votes?')) {
+    if (
+      !confirm(
+        'Are you sure you want to delete this voter and all their votes?',
+      )
+    ) {
       return;
     }
 
     const res = await fetch(`/api/admin/voters/${voterId}`, {
       method: 'DELETE',
-      headers: { Authorization: 'Basic myplainTextAdminCreds' }
+      headers: { Authorization: 'Basic myplainTextAdminCreds' },
     });
 
     if (res.ok) {
@@ -129,9 +122,9 @@ export default function Dashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Basic myplainTextAdminCreds'
+          Authorization: 'Basic myplainTextAdminCreds',
         },
-        body: JSON.stringify({ pairsText: bulkPairsText })
+        body: JSON.stringify({ pairsText: bulkPairsText }),
       });
 
       if (!res.ok) {
@@ -142,18 +135,22 @@ export default function Dashboard() {
       setBulkPairsText('');
       fetchPairs();
     } catch (error) {
-      setBulkImportError(error instanceof Error ? error.message : 'Failed to import pairs');
+      setBulkImportError(
+        error instanceof Error ? error.message : 'Failed to import pairs',
+      );
     }
   };
 
   const handleDeletePair = async (pairId: number) => {
-    if (!confirm('Are you sure you want to delete this pair and all its votes?')) {
+    if (
+      !confirm('Are you sure you want to delete this pair and all its votes?')
+    ) {
       return;
     }
 
     const res = await fetch(`/api/admin/pairs/${pairId}`, {
       method: 'DELETE',
-      headers: { Authorization: 'Basic myplainTextAdminCreds' }
+      headers: { Authorization: 'Basic myplainTextAdminCreds' },
     });
 
     if (res.ok) {
@@ -164,24 +161,25 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
-      <Header 
-        title="Admin Dashboard" 
-        showAdminLink={false} 
+    <div className="mx-auto max-w-6xl p-4">
+      <Header
+        title="Admin Dashboard"
+        showAdminLink={false}
         showHomeLink={true}
         showSignOut={true}
         onSignOut={handleSignOut}
       />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section>
           <Card className="mb-8">
             <CardContent>
-              <h2 className="text-xl font-medium mb-4">Bulk Import Pairs</h2>
+              <h2 className="mb-4 text-xl font-medium">Bulk Import Pairs</h2>
               <form onSubmit={handleBulkImport}>
                 <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-2">
-                    Enter pairs of options, one option per line. Separate different pairs with a blank line.
+                  <p className="mb-2 text-sm text-gray-600">
+                    Enter pairs of options, one option per line. Separate
+                    different pairs with a blank line.
                   </p>
                   <Textarea
                     value={bulkPairsText}
@@ -192,7 +190,7 @@ export default function Dashboard() {
                   />
                 </div>
                 {bulkImportError && (
-                  <div className="text-red-600 text-sm mb-4">
+                  <div className="mb-4 text-sm text-red-600">
                     {bulkImportError}
                   </div>
                 )}
@@ -203,25 +201,25 @@ export default function Dashboard() {
 
           <Card>
             <CardContent>
-              <h2 className="text-xl font-medium mb-4">Add a Single Pair</h2>
+              <h2 className="mb-4 text-xl font-medium">Add a Single Pair</h2>
               <form onSubmit={handleAddPair}>
                 <div className="mb-2">
-                  <input 
-                    type="text" 
-                    placeholder="Option A" 
+                  <input
+                    type="text"
+                    placeholder="Option A"
                     value={optionA}
                     onChange={(e) => setOptionA(e.target.value)}
-                    className="border p-2 w-full rounded"
+                    className="w-full rounded border p-2"
                     required
                   />
                 </div>
                 <div className="mb-2">
-                  <input 
-                    type="text" 
-                    placeholder="Option B" 
+                  <input
+                    type="text"
+                    placeholder="Option B"
                     value={optionB}
                     onChange={(e) => setOptionB(e.target.value)}
-                    className="border p-2 w-full rounded"
+                    className="w-full rounded border p-2"
                     required
                   />
                 </div>
@@ -232,25 +230,35 @@ export default function Dashboard() {
 
           <Card className="mt-8">
             <CardContent>
-              <h2 className="text-xl font-medium mb-4">Current Pairs and Votes</h2>
+              <h2 className="mb-4 text-xl font-medium">
+                Current Pairs and Votes
+              </h2>
               <div className="space-y-4">
                 {pairs.map((pair) => (
-                  <div key={pair.id} className="border p-4 rounded">
-                    <div className="flex justify-between items-start mb-2">
+                  <div key={pair.id} className="rounded border p-4">
+                    <div className="mb-2 flex items-start justify-between">
                       <div>
                         <p className="font-medium">
                           {pair.optionA} vs {pair.optionB}
                         </p>
                         <p>
                           Votes for {pair.optionA}:{' '}
-                          {pair.votes.filter((v) => v.selection === pair.optionA).length}
+                          {
+                            pair.votes.filter(
+                              (v) => v.selection === pair.optionA,
+                            ).length
+                          }
                         </p>
                         <p>
                           Votes for {pair.optionB}:{' '}
-                          {pair.votes.filter((v) => v.selection === pair.optionB).length}
+                          {
+                            pair.votes.filter(
+                              (v) => v.selection === pair.optionB,
+                            ).length
+                          }
                         </p>
                       </div>
-                      <Button 
+                      <Button
                         variant="destructive"
                         onClick={() => handleDeletePair(pair.id)}
                         size="sm"
@@ -268,17 +276,21 @@ export default function Dashboard() {
         <section>
           <Card>
             <CardContent>
-              <h2 className="text-xl font-medium mb-4">Voters</h2>
+              <h2 className="mb-4 text-xl font-medium">Voters</h2>
               <div className="space-y-4">
                 {voters.map((voter) => (
-                  <div key={voter.id} className="border p-4 rounded">
-                    <div className="flex justify-between items-start mb-2">
+                  <div key={voter.id} className="rounded border p-4">
+                    <div className="mb-2 flex items-start justify-between">
                       <div>
                         <p className="font-medium">Voter ID: {voter.id}</p>
-                        <p className="text-sm text-gray-600">Name: {voter.name}</p>
-                        <p className="text-sm text-gray-600">Identifier: {voter.identifier}</p>
+                        <p className="text-sm text-gray-600">
+                          Name: {voter.name}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Identifier: {voter.identifier}
+                        </p>
                       </div>
-                      <Button 
+                      <Button
                         variant="destructive"
                         onClick={() => handleDeleteVoter(voter.id)}
                       >
@@ -286,11 +298,12 @@ export default function Dashboard() {
                       </Button>
                     </div>
                     <div className="mt-2">
-                      <p className="text-sm font-medium mb-1">Vote History:</p>
-                      <ul className="text-sm space-y-1">
+                      <p className="mb-1 text-sm font-medium">Vote History:</p>
+                      <ul className="space-y-1 text-sm">
                         {voter.votes.map((vote) => (
                           <li key={vote.id}>
-                            Voted for {vote.selection} in "{vote.pair.optionA} vs {vote.pair.optionB}"
+                            Voted for {vote.selection} in "{vote.pair.optionA}{' '}
+                            vs {vote.pair.optionB}"
                           </li>
                         ))}
                       </ul>
@@ -304,4 +317,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-} 
+}

@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Header } from "@/components/ui/header";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Toaster, toast } from "react-hot-toast";
-import confetti from "canvas-confetti";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Header } from '@/components/ui/header';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Toaster, toast } from 'react-hot-toast';
+import confetti from 'canvas-confetti';
 
 type Pair = {
   id: number;
@@ -61,33 +61,33 @@ const triggerConfetti = () => {
 export default function VotePage() {
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [votes, setVotes] = useState<{ [key: number]: string }>({});
-  const [voterName, setVoterName] = useState("");
-  const [formError, setFormError] = useState("");
+  const [voterName, setVoterName] = useState('');
+  const [formError, setFormError] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [completedVoterName, setCompletedVoterName] = useState("");
+  const [completedVoterName, setCompletedVoterName] = useState('');
   const [formKey, setFormKey] = useState(Date.now());
 
   useEffect(() => {
     // Fetch pairs from the public endpoint
-    fetch("/api/pairs")
+    fetch('/api/pairs')
       .then((res) => res.json())
       .then((data) => setPairs(data))
       .catch((err) => console.error(err));
   }, []);
 
-  const resetForm = () => {
+  const _resetForm = () => {
     setVotes({});
-    setVoterName("");
-    setFormError("");
+    setVoterName('');
+    setFormError('');
     setShowSuccessModal(false);
-    setCompletedVoterName("");
+    setCompletedVoterName('');
     setFormKey(Date.now());
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleChange = (pairId: number, selection: string) => {
     setVotes((prev) => ({ ...prev, [pairId]: selection }));
-    setFormError(""); // Clear error when user makes a selection
+    setFormError(''); // Clear error when user makes a selection
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,14 +95,14 @@ export default function VotePage() {
 
     // Validate voter name
     if (!voterName.trim()) {
-      setFormError("Please enter your name");
+      setFormError('Please enter your name');
       return;
     }
 
     // Check if all pairs have been voted on
     const unvotedPairs = pairs.filter((pair) => !votes[pair.id]);
     if (unvotedPairs.length > 0) {
-      setFormError("Please vote on all pairs before submitting!");
+      setFormError('Please vote on all pairs before submitting!');
       return;
     }
 
@@ -112,9 +112,9 @@ export default function VotePage() {
       selection: votes[Number(pairId)],
     }));
 
-    const response = await fetch("/api/vote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch('/api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         votes: voteArray,
         voterName: voterName.trim(),
@@ -124,29 +124,29 @@ export default function VotePage() {
     if (response.ok) {
       setVotes({});
       setFormKey(Date.now());
-      
+
       setCompletedVoterName(voterName);
       setShowSuccessModal(true);
       triggerConfetti();
 
       setTimeout(() => {
-        setVoterName("");
-        setFormError("");
+        setVoterName('');
+        setFormError('');
         setShowSuccessModal(false);
-        setCompletedVoterName("");
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        setCompletedVoterName('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 3000);
     } else {
-      toast.error("There was an error submitting your votes.", {
+      toast.error('There was an error submitting your votes.', {
         duration: 4000,
         style: {
-          background: "#fee2e2",
-          color: "#991b1b",
-          padding: "16px",
-          borderRadius: "8px",
+          background: '#fee2e2',
+          color: '#991b1b',
+          padding: '16px',
+          borderRadius: '8px',
         },
       });
-      setFormError("There was an error submitting your votes.");
+      setFormError('There was an error submitting your votes.');
     }
   };
 
@@ -157,8 +157,8 @@ export default function VotePage() {
       {showSuccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl p-8 shadow-2xl transform scale-100 animate-in fade-in zoom-in duration-300 max-w-md w-full mx-4">
-            <div className="text-center space-y-4">
+          <div className="relative mx-4 w-full max-w-md scale-100 transform rounded-2xl bg-white p-8 shadow-2xl duration-300 animate-in fade-in zoom-in">
+            <div className="space-y-4 text-center">
               <div className="text-6xl">🎉</div>
               <h2 className="text-3xl font-bold text-purple-800">
                 Thanks for voting!
@@ -166,7 +166,7 @@ export default function VotePage() {
               <p className="text-xl text-gray-600">
                 We appreciate your input, {completedVoterName}!
               </p>
-              <p className="text-sm text-gray-500 mt-4">
+              <p className="mt-4 text-sm text-gray-500">
                 The form will reset in a moment...
               </p>
             </div>
@@ -174,16 +174,16 @@ export default function VotePage() {
         </div>
       )}
 
-      <div className={showSuccessModal ? "pointer-events-none opacity-50" : ""}>
-        <div className="max-w-4xl mx-auto py-10 px-4 sm:px-6">
+      <div className={showSuccessModal ? 'pointer-events-none opacity-50' : ''}>
+        <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
           <Header title="Vote for Your Favorite Snacks" />
 
           <form key={formKey} onSubmit={handleSubmit} className="space-y-8">
             {pairs.map((pair, index) => (
               <Card key={pair.id}>
                 <CardHeader>
-                  <p className="font-medium text-center text-slate-700">
-                    <span className="inline-block bg-purple-100 text-purple-800 rounded-full px-3 py-1 text-sm mr-2">
+                  <p className="text-center font-medium text-slate-700">
+                    <span className="mr-2 inline-block rounded-full bg-purple-100 px-3 py-1 text-sm text-purple-800">
                       {index + 1}/{pairs.length}
                     </span>
                     Pick your favorite snack!
@@ -194,18 +194,20 @@ export default function VotePage() {
                   <ToggleGroup
                     type="single"
                     value={votes[pair.id]}
-                    onValueChange={(value) => value && handleChange(pair.id, value)}
-                    className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mx-auto"
+                    onValueChange={(value) =>
+                      value && handleChange(pair.id, value)
+                    }
+                    className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2"
                   >
                     <ToggleGroupItem
                       value={pair.optionA}
-                      className="w-full h-16 text-lg font-medium border-2 rounded-lg data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-indigo-600 data-[state=on]:text-white data-[state=on]:border-transparent hover:bg-purple-50 transition-all"
+                      className="h-16 w-full rounded-lg border-2 text-lg font-medium transition-all hover:bg-purple-50 data-[state=on]:border-transparent data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-indigo-600 data-[state=on]:text-white"
                     >
                       {pair.optionA}
                     </ToggleGroupItem>
                     <ToggleGroupItem
                       value={pair.optionB}
-                      className="w-full h-16 text-lg font-medium border-2 rounded-lg data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-indigo-600 data-[state=on]:text-white data-[state=on]:border-transparent hover:bg-purple-50 transition-all"
+                      className="h-16 w-full rounded-lg border-2 text-lg font-medium transition-all hover:bg-purple-50 data-[state=on]:border-transparent data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-indigo-600 data-[state=on]:text-white"
                     >
                       {pair.optionB}
                     </ToggleGroupItem>
@@ -229,9 +231,9 @@ export default function VotePage() {
                     value={voterName}
                     onChange={(e) => {
                       setVoterName(e.target.value);
-                      setFormError("");
+                      setFormError('');
                     }}
-                    className="border border-slate-200 p-3 w-full rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                    className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-purple-500"
                     required
                     placeholder="Enter your name"
                   />
@@ -240,16 +242,16 @@ export default function VotePage() {
             </Card>
 
             {formError && (
-              <div className="text-red-600 text-center font-medium">
+              <div className="text-center font-medium text-red-600">
                 {formError}
               </div>
             )}
 
-            <div className="text-center pt-8">
+            <div className="pt-8 text-center">
               <Button
                 type="submit"
                 size="lg"
-                className="px-10 py-6 text-lg font-medium bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all rounded-full"
+                className="rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 px-10 py-6 text-lg font-medium shadow-lg transition-all hover:from-purple-700 hover:to-indigo-700 hover:shadow-xl"
               >
                 Submit Votes
               </Button>
