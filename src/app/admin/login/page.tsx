@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Header } from '@/components/ui/header';
 import { Card, CardContent } from '@/components/ui/card';
+import { toast } from 'react-hot-toast';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -31,7 +32,7 @@ export default function AdminLogin() {
       sessionStorage.setItem('adminSession', JSON.stringify(session));
       router.push('/admin/dashboard');
     } else {
-      alert('Invalid credentials');
+      toast.error('Invalid credentials');
     }
   };
 

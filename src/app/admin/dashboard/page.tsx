@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Header } from '@/components/ui/header';
 import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'react-hot-toast';
 
 type Pair = {
   id: number;
@@ -213,7 +214,7 @@ export default function Dashboard() {
         fetchPairs(); // Refresh pairs to update vote counts
       } else {
         console.error('Failed to delete voter:', res.statusText);
-        alert('Failed to delete voter');
+        toast.error('Failed to delete voter');
       }
     } catch (error) {
       console.error('Error in handleDeleteVoter:', error);
@@ -289,7 +290,7 @@ export default function Dashboard() {
         fetchPairs();
       } else {
         console.error('Failed to delete pair:', res.statusText);
-        alert('Failed to delete pair');
+        toast.error('Failed to delete pair');
       }
     } catch (error) {
       console.error('Error in handleDeletePair:', error);
