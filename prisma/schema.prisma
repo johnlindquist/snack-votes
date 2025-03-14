@@ -1,0 +1,36 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Pair {
+  id       Int      @id @default(autoincrement())
+  optionA  String
+  optionB  String
+  votes    Vote[]
+}
+
+model Voter {
+  id         Int      @id @default(autoincrement())
+  name       String   // Voter's name
+  identifier String   // e.g. could be an email, IP, or a cookie value
+  votes      Vote[]
+}
+
+model Vote {
+  id        Int      @id @default(autoincrement())
+  selection String   // Stores the selected option – store as a string that matches optionA or optionB
+  pairId    Int
+  voterId   Int
+  createdAt DateTime @default(now())
+  
+  pair    Pair    @relation(fields: [pairId], references: [id])
+  voter   Voter   @relation(fields: [voterId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,9 @@
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "snack_votes_d1",
+      "database_id": "a2c8e2ec-878f-42b5-a0eb-aa1694f30ce9"
+    }
+  ]
+}
