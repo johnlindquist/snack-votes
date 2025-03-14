@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 
+export const dynamic = 'force-dynamic'; // Disable static optimization for this route
+
 export async function GET() {
   console.log('API: /api/pairs endpoint called');
   console.log('Environment:', process.env.NODE_ENV);
@@ -19,7 +21,12 @@ export async function GET() {
         error: 'Database configuration missing',
         details: 'POSTGRES_PRISMA_URL environment variable is not set',
       },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      },
     );
   }
 
@@ -34,7 +41,12 @@ export async function GET() {
       pairs[0] ? JSON.stringify(pairs[0]) : 'No pairs found',
     );
 
-    return NextResponse.json(pairs);
+    // Return response with cache control headers
+    return NextResponse.json(pairs, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
   } catch (error) {
     console.error('API: Error fetching pairs:', error);
 
@@ -62,7 +74,12 @@ export async function GET() {
         error: 'Failed to fetch pairs',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      },
     );
   }
 }

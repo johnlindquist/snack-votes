@@ -91,7 +91,9 @@ export default function VotePage() {
       setIsLoading(false);
     }, 10000);
 
-    fetch('/api/pairs')
+    // Add cache-busting parameter to prevent caching
+    const timestamp = new Date().getTime();
+    fetch(`/api/pairs?t=${timestamp}`)
       .then((res) => {
         console.log('API response status:', res.status);
         console.log(
@@ -278,6 +280,18 @@ export default function VotePage() {
               </button>
             </div>
           )}
+
+          {/* Refresh button - always visible */}
+          <div className="mb-4 text-right">
+            <button
+              type="button"
+              onClick={() => fetchPairs()}
+              className="rounded bg-blue-100 px-3 py-1 text-xs text-blue-700 hover:bg-blue-200"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Refreshing...' : 'Refresh Snacks'}
+            </button>
+          </div>
 
           {/* Diagnostic information */}
           {showDiagnostics && (
