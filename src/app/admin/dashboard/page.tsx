@@ -47,8 +47,17 @@ export default function Dashboard() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        const sessionData = sessionStorage.getItem('adminSession');
+        if (!sessionData) {
+          handleSignOut();
+          return;
+        }
+        const { authToken } = JSON.parse(sessionData);
         const response = await fetch('/api/admin/auth', {
           method: 'GET',
+          headers: {
+            Authorization: authToken,
+          },
         });
         if (!response.ok) {
           handleSignOut();
@@ -61,16 +70,22 @@ export default function Dashboard() {
   }, [handleSignOut, router]);
 
   const fetchPairs = async () => {
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) return;
+    const { authToken } = JSON.parse(sessionData);
     const res = await fetch('/api/admin/pairs', {
-      headers: { Authorization: 'Basic myplainTextAdminCreds' },
+      headers: { Authorization: authToken },
     });
     const data = await res.json();
     setPairs(data);
   };
 
   const fetchVoters = async () => {
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) return;
+    const { authToken } = JSON.parse(sessionData);
     const res = await fetch('/api/admin/voters', {
-      headers: { Authorization: 'Basic myplainTextAdminCreds' },
+      headers: { Authorization: authToken },
     });
     const data = await res.json();
     setVoters(data);
@@ -78,11 +93,14 @@ export default function Dashboard() {
 
   const handleAddPair = async (e: React.FormEvent) => {
     e.preventDefault();
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) return;
+    const { authToken } = JSON.parse(sessionData);
     await fetch('/api/admin/pairs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Basic myplainTextAdminCreds',
+        Authorization: authToken,
       },
       body: JSON.stringify({ optionA, optionB }),
     });
@@ -100,9 +118,12 @@ export default function Dashboard() {
       return;
     }
 
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) return;
+    const { authToken } = JSON.parse(sessionData);
     const res = await fetch(`/api/admin/voters/${voterId}`, {
       method: 'DELETE',
-      headers: { Authorization: 'Basic myplainTextAdminCreds' },
+      headers: { Authorization: authToken },
     });
 
     if (res.ok) {
@@ -118,11 +139,14 @@ export default function Dashboard() {
     setBulkImportError('');
 
     try {
+      const sessionData = sessionStorage.getItem('adminSession');
+      if (!sessionData) return;
+      const { authToken } = JSON.parse(sessionData);
       const res = await fetch('/api/admin/pairs/bulk', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Basic myplainTextAdminCreds',
+          Authorization: authToken,
         },
         body: JSON.stringify({ pairsText: bulkPairsText }),
       });
@@ -148,9 +172,12 @@ export default function Dashboard() {
       return;
     }
 
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) return;
+    const { authToken } = JSON.parse(sessionData);
     const res = await fetch(`/api/admin/pairs/${pairId}`, {
       method: 'DELETE',
-      headers: { Authorization: 'Basic myplainTextAdminCreds' },
+      headers: { Authorization: authToken },
     });
 
     if (res.ok) {

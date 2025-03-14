@@ -22,10 +22,11 @@ export default function AdminLogin() {
     e.preventDefault();
     // Simple check – in a real app this would be an API call
     if (username === 'admin' && password === 'password123') {
-      // Store session data with timestamp
+      // Store session data with timestamp and auth token
       const session = {
         timestamp: new Date().toISOString(),
         isAuthenticated: true,
+        authToken: 'Basic myplainTextAdminCreds',
       };
       sessionStorage.setItem('adminSession', JSON.stringify(session));
       router.push('/admin/dashboard');
