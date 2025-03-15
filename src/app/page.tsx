@@ -18,7 +18,15 @@ export default function Home() {
       try {
         console.log('Home page: Fetching active poll info');
         const timestamp = new Date().getTime();
-        const response = await fetch(`/api/polls/active?t=${timestamp}`);
+        const response = await fetch(`/api/polls/active?t=${timestamp}`, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            // Add a random header value to bypass cache
+            'X-Cache-Bust': timestamp.toString(),
+          },
+        });
 
         if (!response.ok) {
           if (response.status === 404) {

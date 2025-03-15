@@ -140,8 +140,15 @@ export default function Dashboard() {
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for polls fetch:', authToken);
-      const res = await fetch('/api/admin/polls', {
-        headers: { Authorization: authToken },
+      const timestamp = new Date().getTime();
+      const res = await fetch(`/api/admin/polls?t=${timestamp}`, {
+        headers: {
+          Authorization: authToken,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'X-Cache-Bust': timestamp.toString(),
+        },
       });
       console.log('Polls API response status:', res.status);
       if (!res.ok) {
@@ -183,12 +190,22 @@ export default function Dashboard() {
         params.append('groupId', groupId.toString());
       }
 
+      // Add cache-busting parameter
+      const timestamp = new Date().getTime();
+      params.append('t', timestamp.toString());
+
       if (params.toString()) {
         url += `?${params.toString()}`;
       }
 
       const res = await fetch(url, {
-        headers: { Authorization: authToken },
+        headers: {
+          Authorization: authToken,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'X-Cache-Bust': timestamp.toString(),
+        },
       });
       console.log('Pairs API response status:', res.status);
       if (!res.ok) {
@@ -214,8 +231,15 @@ export default function Dashboard() {
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for voters fetch:', authToken);
-      const res = await fetch('/api/admin/voters', {
-        headers: { Authorization: authToken },
+      const timestamp = new Date().getTime();
+      const res = await fetch(`/api/admin/voters?t=${timestamp}`, {
+        headers: {
+          Authorization: authToken,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'X-Cache-Bust': timestamp.toString(),
+        },
       });
       console.log('Voters API response status:', res.status);
       if (!res.ok) {
@@ -241,9 +265,19 @@ export default function Dashboard() {
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for groups fetch:', authToken);
-      const res = await fetch(`/api/admin/polls/${pollId}/groups`, {
-        headers: { Authorization: authToken },
-      });
+      const timestamp = new Date().getTime();
+      const res = await fetch(
+        `/api/admin/polls/${pollId}/groups?t=${timestamp}`,
+        {
+          headers: {
+            Authorization: authToken,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            'X-Cache-Bust': timestamp.toString(),
+          },
+        },
+      );
       console.log('Groups API response status:', res.status);
       if (!res.ok) {
         console.error('Failed to fetch groups:', res.statusText);
@@ -303,10 +337,20 @@ export default function Dashboard() {
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for activate poll:', authToken);
-      const res = await fetch(`/api/admin/polls/${pollId}/activate`, {
-        method: 'PATCH',
-        headers: { Authorization: authToken },
-      });
+      const timestamp = new Date().getTime();
+      const res = await fetch(
+        `/api/admin/polls/${pollId}/activate?t=${timestamp}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: authToken,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            'X-Cache-Bust': timestamp.toString(),
+          },
+        },
+      );
       console.log('Activate poll API response status:', res.status);
 
       if (res.ok) {
@@ -342,10 +386,20 @@ export default function Dashboard() {
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for close poll:', authToken);
-      const res = await fetch(`/api/admin/polls/${pollId}/close`, {
-        method: 'PATCH',
-        headers: { Authorization: authToken },
-      });
+      const timestamp = new Date().getTime();
+      const res = await fetch(
+        `/api/admin/polls/${pollId}/close?t=${timestamp}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: authToken,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            'X-Cache-Bust': timestamp.toString(),
+          },
+        },
+      );
       console.log('Close poll API response status:', res.status);
 
       if (res.ok) {
