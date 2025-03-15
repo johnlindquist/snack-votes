@@ -100,19 +100,21 @@ export async function POST(request: Request) {
     // Create all pairs in the database
     console.log('Creating pairs in database');
     const pairsData = pairs.map((pair) => {
-      const data: {
-        optionA: string;
-        optionB: string;
-        poll: { connect: { id: number } };
-        group?: { connect: { id: number } };
-      } = {
+      // Using proper Prisma type for Pair creation
+      const data = {
         optionA: pair.optionA,
         optionB: pair.optionB,
         poll: { connect: { id: targetPollId } },
       };
 
+      // Only add the group connection if a group ID is provided
       if (targetGroupId) {
-        data.group = { connect: { id: targetGroupId } };
+        return prisma.pair.create({
+          data: {
+            ...data,
+            group: { connect: { id: targetGroupId } },
+          },
+        });
       }
 
       return prisma.pair.create({ data });

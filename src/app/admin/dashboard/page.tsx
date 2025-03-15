@@ -74,10 +74,6 @@ export default function Dashboard() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [bulkPairsText, setBulkPairsText] = useState('');
   const [bulkImportError, setBulkImportError] = useState('');
-  const [activeTab, setActiveTab] = useState('polls');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const handleSignOut = useCallback(() => {
     console.log('Signing out user');
@@ -567,7 +563,6 @@ export default function Dashboard() {
     setSelectedGroupId(null); // Reset group selection
     fetchPairs(pollId);
     fetchGroups(pollId);
-    setActiveTab('pairs'); // Switch to the pairs tab
   };
 
   const handleGroupSelect = (groupId: number | null) => {
@@ -619,73 +614,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleDeletePoll = async (pollId: number) => {
-    console.log('Deleting poll:', pollId);
-
-    const sessionData = sessionStorage.getItem('adminSession');
-    if (!sessionData) {
-      console.log('No session data found when deleting poll');
-      return;
-    }
-
-    try {
-      const { authToken } = JSON.parse(sessionData);
-      console.log('Using auth token for delete poll:', authToken);
-      const res = await fetch(`/api/admin/polls/${pollId}`, {
-        method: 'DELETE',
-        headers: { Authorization: authToken },
-      });
-      console.log('Delete poll API response status:', res.status);
-
-      if (res.ok) {
-        console.log('Poll deleted successfully, refreshing data');
-        fetchPolls();
-        toast.success('Poll deleted successfully');
-        // Reset state
-        setShowDeleteConfirm(false);
-        setPollToDelete(null);
-        setDeleteConfirmText('');
-        if (selectedPollId === pollId) {
-          setSelectedPollId(null);
-          setPairs([]);
-          setGroups([]);
-        }
-      } else {
-        console.error('Failed to delete poll:', res.statusText);
-        toast.error('Failed to delete poll');
-      }
-    } catch (error) {
-      console.error('Error in handleDeletePoll:', error);
-      toast.error('Error deleting poll');
-    }
-  };
-
-  const openDeleteConfirm = (poll: Poll) => {
-    setPollToDelete(poll);
-    setShowDeleteConfirm(true);
-    setDeleteConfirmText('');
-  };
-
-  const closeDeleteConfirm = () => {
-    setShowDeleteConfirm(false);
-    setPollToDelete(null);
-    setDeleteConfirmText('');
-  };
-
-  const confirmDelete = () => {
-    console.log('Confirming delete:', {
-      entered: deleteConfirmText,
-      expected: pollToDelete?.title,
-      match: deleteConfirmText === pollToDelete?.title,
-    });
-
-    if (pollToDelete && deleteConfirmText === pollToDelete.title) {
-      handleDeletePoll(pollToDelete.id);
-    } else {
-      toast.error('Poll title does not match');
-    }
-  };
-
   console.log('Current state - pairs:', pairs.length, 'voters:', voters.length);
 
   return (
@@ -698,47 +626,7 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {showDeleteConfirm && pollToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-4 text-xl font-bold text-red-600">Delete Poll</h2>
-            <p className="mb-4">
-              Are you sure you want to delete the poll "{pollToDelete.title}"?
-              This action cannot be undone.
-            </p>
-            <p className="mb-4 font-medium">
-              Type the poll name to confirm deletion:
-            </p>
-            <Input
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="Type poll name here"
-              className="mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={closeDeleteConfirm}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmDelete}
-                disabled={
-                  pollToDelete && deleteConfirmText !== pollToDelete.title
-                }
-              >
-                Delete Poll
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Tabs
-        defaultValue="polls"
-        className="w-full"
-        value={activeTab}
-        onValueChange={setActiveTab}
-      >
+      <Tabs defaultValue="polls" className="w-full">
         <TabsList className="mb-6 w-full justify-start">
           <TabsTrigger value="polls">Polls</TabsTrigger>
           <TabsTrigger value="pairs">Pairs & Groups</TabsTrigger>
@@ -839,13 +727,6 @@ export default function Dashboard() {
                             onClick={() => router.push(`/poll/${poll.id}`)}
                           >
                             View Results
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => openDeleteConfirm(poll)}
-                          >
-                            Delete
                           </Button>
                         </div>
                       </div>
