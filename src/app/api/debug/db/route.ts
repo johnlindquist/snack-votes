@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import crypto from 'crypto';
 
 export async function GET() {
   console.log('Debug API: Database connection test initiated');
 
-  // Only allow in development mode for security
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Debug API: Blocked in production mode');
-    return NextResponse.json(
-      { error: 'Debug endpoints are not available in production' },
-      { status: 403 },
-    );
-  }
+  // Allow in production for temporary debugging
+  // if (process.env.NODE_ENV === 'production') {
+  //   console.log('Debug API: Blocked in production mode');
+  //   return NextResponse.json(
+  //     { error: 'Debug endpoints are not available in production' },
+  //     { status: 403 },
+  //   );
+  // }
 
   try {
     // Test database connection by running a simple query
@@ -19,6 +20,18 @@ export async function GET() {
 
     // Check if we can connect to the database
     const pairCount = await prisma.pair.count();
+    const pollCount = await prisma.poll.count();
+    const voterCount = await prisma.voter.count();
+
+    // Get a hash of the connection string to verify it's the same across requests
+    // without exposing the actual connection string
+    const connectionHash = process.env.POSTGRES_PRISMA_URL
+      ? crypto
+          .createHash('md5')
+          .update(process.env.POSTGRES_PRISMA_URL)
+          .digest('hex')
+          .substring(0, 8)
+      : 'not-set';
 
     // Get database connection info (safely)
     const dbInfo = {
@@ -26,7 +39,11 @@ export async function GET() {
       url: process.env.POSTGRES_PRISMA_URL
         ? 'Set (masked for security)'
         : 'Not set',
+      connectionHash,
       pairCount,
+      pollCount,
+      voterCount,
+      timestamp: new Date().toISOString(),
     };
 
     console.log('Debug API: Database connection successful');

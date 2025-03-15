@@ -1,17 +1,29 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import crypto from 'crypto';
 
 declare global {
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
 }
 
+// Create a hash of the connection string to verify it's the same across requests
+// without exposing the actual connection string
+const connectionHash = process.env.POSTGRES_PRISMA_URL
+  ? crypto
+      .createHash('md5')
+      .update(process.env.POSTGRES_PRISMA_URL)
+      .digest('hex')
+      .substring(0, 8)
+  : 'not-set';
+
 // Log database connection information
 console.log('Database initialization');
 console.log('Environment:', process.env.NODE_ENV);
 console.log(
   'Database URL configured:',
-  process.env.DATABASE_URL ? 'Yes (masked for security)' : 'No',
+  process.env.POSTGRES_PRISMA_URL ? 'Yes (masked for security)' : 'No',
 );
+console.log('Connection hash:', connectionHash);
 
 // Create Prisma client with additional logging in non-production environments
 const prismaClientOptions: Prisma.PrismaClientOptions =
