@@ -1,60 +1,31 @@
-import Link from 'next/link';
-import { Button } from './button';
+import { Navigation, NavButton } from './navigation';
 
 interface HeaderProps {
-  title: string;
-  showAdminLink?: boolean;
+  title?: string;
   showHomeLink?: boolean;
   showSignOut?: boolean;
   onSignOut?: () => void;
 }
 
 export function Header({
-  title,
-  showAdminLink = true,
+  title = 'Snack Bracket',
   showHomeLink = false,
   showSignOut = false,
   onSignOut,
 }: HeaderProps) {
   return (
-    <header className="mb-12 flex items-center justify-between">
-      <h1 className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-3xl font-bold text-transparent">
-        {title}
-      </h1>
-      <div className="flex gap-4">
-        {showHomeLink && (
-          <Link href="/">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-slate-600 hover:text-slate-900"
-            >
-              Back to Home
-            </Button>
-          </Link>
-        )}
-        {showAdminLink && (
-          <Link href="/admin/login">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-slate-600 hover:text-slate-900"
-            >
-              Admin Login
-            </Button>
-          </Link>
-        )}
-        {showSignOut && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-slate-600 hover:text-slate-900"
-            onClick={onSignOut}
-          >
-            Sign Out
-          </Button>
-        )}
+    <header className="flex w-full flex-col items-center">
+      <div className="mb-4 text-center">
+        <h1 className="text-4xl font-extrabold text-primary">
+          {title || 'Snack Bracket'}
+        </h1>
+        <div className="bg-primary/20 mx-auto mt-3 h-1 w-24 rounded-full"></div>
       </div>
+
+      <Navigation className="mt-2">
+        {showHomeLink && <NavButton href="/">Back to Home</NavButton>}
+        {showSignOut && <NavButton onClick={onSignOut}>Sign Out</NavButton>}
+      </Navigation>
     </header>
   );
 }

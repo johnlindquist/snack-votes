@@ -7,39 +7,52 @@ async function isAdmin(request: Request) {
   return auth === 'Basic myplainTextAdminCreds';
 }
 
-const pairs = [
-  { optionA: 'hot tamales', optionB: 'dark chocolate' },
-  { optionA: 'skinny pop regular', optionB: 'popcorn' },
-  { optionA: 'cookies', optionB: 'chocolate' },
-  { optionA: 'munchies', optionB: 'regular chex mix' },
-  { optionA: 'pringles', optionB: 'pringles BBQ' },
-  { optionA: 'Chocolate raisins', optionB: 'dried mangos' },
-];
-
 export async function POST(request: Request) {
   if (!(await isAdmin(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    // Delete existing pairs
+    // Delete existing data
+    await prisma.vote.deleteMany();
     await prisma.pair.deleteMany();
+    await prisma.voter.deleteMany();
+    await prisma.group.deleteMany();
+    await prisma.poll.deleteMany();
+
+    // Create a default poll
+    const poll = await prisma.poll.create({
+      data: {
+        title: 'Snack Preferences',
+        isActive: true,
+      },
+    });
+
+    // Create pairs with the poll connection
+    const pairs = [
+      { optionA: 'hot tamales', optionB: 'dark chocolate' },
+      { optionA: 'skinny pop regular', optionB: 'popcorn' },
+      { optionA: 'cookies', optionB: 'chocolate' },
+      { optionA: 'munchies', optionB: 'regular chex mix' },
+      { optionA: 'pringles', optionB: 'pringles BBQ' },
+      { optionA: 'Chocolate raisins', optionB: 'dried mangos' },
+    ];
 
     // Create new pairs
     const createdPairs = await Promise.all(
       pairs.map((pair) =>
         prisma.pair.create({
-          data: pair,
+          data: {
+            ...pair,
+            poll: { connect: { id: poll.id } },
+          },
         }),
       ),
     );
 
-    return NextResponse.json(createdPairs, { status: 201 });
+    return NextResponse.json({ poll, pairs: createdPairs }, { status: 201 });
   } catch (error) {
-    console.error('Error seeding pairs:', error);
-    return NextResponse.json(
-      { error: 'Failed to seed pairs' },
-      { status: 500 },
-    );
+    console.error('Error seeding data:', error);
+    return NextResponse.json({ error: 'Failed to seed data' }, { status: 500 });
   }
 }

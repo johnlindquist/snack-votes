@@ -6,7 +6,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Snack Votes - Vote for Your Favorite Snacks',
+  title: 'Snack Bracket - Vote for Your Favorite Snacks',
   description: 'A fun poll app to vote for your favorite snacks',
 };
 

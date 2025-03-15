@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { prisma } from '@/lib/db';
+import prisma from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 
 export async function POST(request: Request) {
   try {
-    const { votes, voterName } = await request.json();
+    const { votes, voterName, pollId } = await request.json();
 
     if (!voterName?.trim()) {
       return NextResponse.json(
@@ -14,9 +14,33 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!pollId) {
+      return NextResponse.json(
+        { error: 'Poll ID is required' },
+        { status: 400 },
+      );
+    }
+
+    // Check if the poll exists and is not closed
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId },
+    });
+
+    if (!poll) {
+      return NextResponse.json({ error: 'Poll not found' }, { status: 404 });
+    }
+
+    if (poll.isClosed) {
+      return NextResponse.json(
+        { error: 'This poll is closed and no longer accepting votes' },
+        { status: 400 },
+      );
+    }
+
     const voterData: Prisma.VoterCreateInput = {
       name: voterName.trim(),
       identifier: randomUUID(),
+      poll: { connect: { id: pollId } },
     };
 
     // Create a new voter with a random identifier for each submission

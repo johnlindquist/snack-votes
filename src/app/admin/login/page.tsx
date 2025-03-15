@@ -39,7 +39,7 @@ export default function AdminLogin() {
   return (
     <div className="mx-auto mt-16 max-w-md">
       <Card>
-        <Header title="Admin" showAdminLink={false} showHomeLink={true} />
+        <Header title="Admin" showHomeLink={true} />
 
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
@@ -51,7 +51,7 @@ export default function AdminLogin() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-primary"
                 required
               />
             </div>
@@ -63,15 +63,15 @@ export default function AdminLogin() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-primary"
                 required
               />
             </div>
             <Button
               type="submit"
-              className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 py-3 font-medium hover:from-purple-700 hover:to-indigo-700"
+              className="w-full rounded-lg bg-gradient-to-r from-primary-50 to-indigo-600 py-3 font-medium hover:from-primary-50 hover:to-indigo-700"
             >
-              Log In
+              Login
             </Button>
           </form>
         </CardContent>

@@ -7,11 +7,39 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Header } from '@/components/ui/header';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'react-hot-toast';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+type Poll = {
+  id: number;
+  title: string;
+  isActive: boolean;
+  isClosed: boolean;
+  createdAt: string;
+  _count: {
+    pairs: number;
+    voters: number;
+    groups?: number;
+  };
+};
+
+type Group = {
+  id: number;
+  title: string;
+  pollId: number;
+  pairs: Pair[];
+  _count?: {
+    pairs: number;
+  };
+};
 
 type Pair = {
   id: number;
   optionA: string;
   optionB: string;
+  pollId: number;
+  groupId?: number;
+  group?: Group;
   votes: { selection: string }[];
 };
 
@@ -34,12 +62,22 @@ type Voter = {
 export default function Dashboard() {
   console.log('Dashboard component rendering');
   const router = useRouter();
+  const [polls, setPolls] = useState<Poll[]>([]);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [voters, setVoters] = useState<Voter[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [optionA, setOptionA] = useState('');
   const [optionB, setOptionB] = useState('');
+  const [pollTitle, setPollTitle] = useState('');
+  const [groupTitle, setGroupTitle] = useState('');
+  const [selectedPollId, setSelectedPollId] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [bulkPairsText, setBulkPairsText] = useState('');
   const [bulkImportError, setBulkImportError] = useState('');
+  const [activeTab, setActiveTab] = useState('polls');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const handleSignOut = useCallback(() => {
     console.log('Signing out user');
@@ -87,7 +125,7 @@ export default function Dashboard() {
     const fetchData = async () => {
       console.log('Fetching data');
       try {
-        await Promise.all([fetchPairs(), fetchVoters()]);
+        await Promise.all([fetchPolls(), fetchPairs(), fetchVoters()]);
         console.log('Data fetch complete');
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -96,8 +134,39 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const fetchPairs = async () => {
-    console.log('Fetching pairs');
+  const fetchPolls = async () => {
+    console.log('Fetching polls');
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when fetching polls');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for polls fetch:', authToken);
+      const res = await fetch('/api/admin/polls', {
+        headers: { Authorization: authToken },
+      });
+      console.log('Polls API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to fetch polls:', res.statusText);
+        return;
+      }
+      const data = await res.json();
+      console.log('Polls data received:', data);
+      setPolls(data);
+      console.log('Polls state updated');
+    } catch (error) {
+      console.error('Error in fetchPolls:', error);
+    }
+  };
+
+  const fetchPairs = async (pollId?: number, groupId?: number) => {
+    console.log(
+      'Fetching pairs',
+      pollId ? `for poll ${pollId}` : '',
+      groupId ? `for group ${groupId}` : '',
+    );
     const sessionData = sessionStorage.getItem('adminSession');
     if (!sessionData) {
       console.log('No session data found when fetching pairs');
@@ -106,7 +175,23 @@ export default function Dashboard() {
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for pairs fetch:', authToken);
-      const res = await fetch('/api/admin/pairs', {
+
+      let url = '/api/admin/pairs';
+      const params = new URLSearchParams();
+
+      if (pollId) {
+        params.append('pollId', pollId.toString());
+      }
+
+      if (groupId) {
+        params.append('groupId', groupId.toString());
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      const res = await fetch(url, {
         headers: { Authorization: authToken },
       });
       console.log('Pairs API response status:', res.status);
@@ -150,36 +235,349 @@ export default function Dashboard() {
     }
   };
 
+  const fetchGroups = async (pollId: number) => {
+    console.log(`Fetching groups for poll ${pollId}`);
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when fetching groups');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for groups fetch:', authToken);
+      const res = await fetch(`/api/admin/polls/${pollId}/groups`, {
+        headers: { Authorization: authToken },
+      });
+      console.log('Groups API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to fetch groups:', res.statusText);
+        return;
+      }
+      const data = await res.json();
+      console.log('Groups data received:', data);
+      setGroups(data);
+      console.log('Groups state updated');
+    } catch (error) {
+      console.error('Error in fetchGroups:', error);
+    }
+  };
+
+  const handleCreatePoll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Creating poll:', { title: pollTitle });
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when creating poll');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for create poll:', authToken);
+      const res = await fetch('/api/admin/polls', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authToken,
+        },
+        body: JSON.stringify({ title: pollTitle }),
+      });
+      console.log('Create poll API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to create poll:', res.statusText);
+        toast.error('Failed to create poll');
+        return;
+      }
+      setPollTitle('');
+      console.log('Poll created successfully, fetching updated polls');
+      fetchPolls();
+      toast.success('Poll created successfully');
+    } catch (error) {
+      console.error('Error in handleCreatePoll:', error);
+      toast.error('Error creating poll');
+    }
+  };
+
+  const handleActivatePoll = async (pollId: number) => {
+    console.log('Activating poll:', pollId);
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when activating poll');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for activate poll:', authToken);
+      const res = await fetch(`/api/admin/polls/${pollId}/activate`, {
+        method: 'PATCH',
+        headers: { Authorization: authToken },
+      });
+      console.log('Activate poll API response status:', res.status);
+
+      if (res.ok) {
+        console.log('Poll activated successfully, refreshing data');
+        fetchPolls();
+        toast.success('Poll activated successfully');
+      } else {
+        console.error('Failed to activate poll:', res.statusText);
+        toast.error('Failed to activate poll');
+      }
+    } catch (error) {
+      console.error('Error in handleActivatePoll:', error);
+      toast.error('Error activating poll');
+    }
+  };
+
+  const handleClosePoll = async (pollId: number) => {
+    console.log('Closing poll:', pollId);
+    if (
+      !confirm(
+        'Are you sure you want to close this poll? This will prevent any new votes from being cast.',
+      )
+    ) {
+      console.log('Poll closure cancelled by user');
+      return;
+    }
+
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when closing poll');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for close poll:', authToken);
+      const res = await fetch(`/api/admin/polls/${pollId}/close`, {
+        method: 'PATCH',
+        headers: { Authorization: authToken },
+      });
+      console.log('Close poll API response status:', res.status);
+
+      if (res.ok) {
+        console.log('Poll closed successfully, refreshing data');
+        fetchPolls();
+        toast.success('Poll closed successfully');
+      } else {
+        console.error('Failed to close poll:', res.statusText);
+        toast.error('Failed to close poll');
+      }
+    } catch (error) {
+      console.error('Error in handleClosePoll:', error);
+      toast.error('Error closing poll');
+    }
+  };
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Creating group:', {
+      title: groupTitle,
+      pollId: selectedPollId,
+    });
+    if (!selectedPollId) {
+      toast.error('Please select a poll first');
+      return;
+    }
+
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when creating group');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for create group:', authToken);
+      const res = await fetch(`/api/admin/polls/${selectedPollId}/groups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authToken,
+        },
+        body: JSON.stringify({ title: groupTitle }),
+      });
+      console.log('Create group API response status:', res.status);
+      if (!res.ok) {
+        console.error('Failed to create group:', res.statusText);
+        toast.error('Failed to create group');
+        return;
+      }
+      setGroupTitle('');
+      console.log('Group created successfully, fetching updated groups');
+      fetchGroups(selectedPollId);
+      toast.success('Group created successfully');
+    } catch (error) {
+      console.error('Error in handleCreateGroup:', error);
+      toast.error('Error creating group');
+    }
+  };
+
   const handleAddPair = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Adding pair:', { optionA, optionB });
+    console.log('Adding pair:', {
+      optionA,
+      optionB,
+      pollId: selectedPollId,
+      groupId: selectedGroupId,
+    });
+
+    if (!selectedPollId) {
+      toast.error('Please select a poll first');
+      return;
+    }
+
     const sessionData = sessionStorage.getItem('adminSession');
     if (!sessionData) {
       console.log('No session data found when adding pair');
       return;
     }
+
     try {
       const { authToken } = JSON.parse(sessionData);
       console.log('Using auth token for add pair:', authToken);
+
+      // Prepare request body
+      const requestBody: {
+        optionA: string;
+        optionB: string;
+        pollId: number;
+        groupId?: number;
+      } = {
+        optionA,
+        optionB,
+        pollId: selectedPollId,
+      };
+
+      // Add groupId if selected
+      if (selectedGroupId) {
+        requestBody.groupId = selectedGroupId;
+      }
+
       const res = await fetch('/api/admin/pairs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: authToken,
         },
-        body: JSON.stringify({ optionA, optionB }),
+        body: JSON.stringify(requestBody),
       });
+
       console.log('Add pair API response status:', res.status);
       if (!res.ok) {
         console.error('Failed to add pair:', res.statusText);
+        toast.error('Failed to add pair');
         return;
       }
+
       setOptionA('');
       setOptionB('');
       console.log('Pair added successfully, fetching updated pairs');
-      fetchPairs();
+
+      // Fetch pairs based on what's selected
+      if (selectedGroupId) {
+        fetchPairs(undefined, selectedGroupId);
+      } else {
+        fetchPairs(selectedPollId);
+      }
+
+      toast.success('Pair added successfully');
     } catch (error) {
       console.error('Error in handleAddPair:', error);
+      toast.error('Error adding pair');
+    }
+  };
+
+  const handleBulkImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Bulk importing pairs:', {
+      pollId: selectedPollId,
+      groupId: selectedGroupId,
+    });
+
+    if (!selectedPollId) {
+      setBulkImportError('Please select a poll first');
+      return;
+    }
+
+    if (!bulkPairsText.trim()) {
+      setBulkImportError('Please enter some pairs');
+      return;
+    }
+
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when bulk importing pairs');
+      return;
+    }
+
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for bulk import:', authToken);
+
+      // Prepare request body
+      const requestBody: {
+        pairsText: string;
+        pollId: number;
+        groupId?: number;
+      } = {
+        pairsText: bulkPairsText,
+        pollId: selectedPollId,
+      };
+
+      // Add groupId if selected
+      if (selectedGroupId) {
+        requestBody.groupId = selectedGroupId;
+      }
+
+      const res = await fetch('/api/admin/pairs/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authToken,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Bulk import API response status:', res.status);
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('Failed to bulk import pairs:', errorData.error);
+        setBulkImportError(errorData.error || 'Failed to bulk import pairs');
+        return;
+      }
+
+      setBulkPairsText('');
+      setBulkImportError('');
+      console.log('Pairs bulk imported successfully, fetching updated pairs');
+
+      // Fetch pairs based on what's selected
+      if (selectedGroupId) {
+        fetchPairs(undefined, selectedGroupId);
+      } else {
+        fetchPairs(selectedPollId);
+      }
+
+      toast.success('Pairs bulk imported successfully');
+    } catch (error) {
+      console.error('Error in handleBulkImport:', error);
+      setBulkImportError('Error bulk importing pairs');
+    }
+  };
+
+  const handlePollSelect = (pollId: number) => {
+    console.log('Poll selected:', pollId);
+    setSelectedPollId(pollId);
+    setSelectedGroupId(null); // Reset group selection
+    fetchPairs(pollId);
+    fetchGroups(pollId);
+    setActiveTab('pairs'); // Switch to the pairs tab
+  };
+
+  const handleGroupSelect = (groupId: number | null) => {
+    console.log('Group selected:', groupId);
+    setSelectedGroupId(groupId);
+
+    if (groupId) {
+      fetchPairs(undefined, groupId);
+    } else if (selectedPollId) {
+      fetchPairs(selectedPollId);
     }
   };
 
@@ -221,239 +619,480 @@ export default function Dashboard() {
     }
   };
 
-  const handleBulkImport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Bulk importing pairs');
-    setBulkImportError('');
-
-    try {
-      const sessionData = sessionStorage.getItem('adminSession');
-      if (!sessionData) {
-        console.log('No session data found when bulk importing');
-        return;
-      }
-      const { authToken } = JSON.parse(sessionData);
-      console.log('Using auth token for bulk import:', authToken);
-      console.log('Bulk import text:', bulkPairsText);
-      const res = await fetch('/api/admin/pairs/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authToken,
-        },
-        body: JSON.stringify({ pairsText: bulkPairsText }),
-      });
-      console.log('Bulk import API response status:', res.status);
-
-      if (!res.ok) {
-        const error = await res.json();
-        console.error('Bulk import failed:', error);
-        throw new Error(error.error || 'Failed to import pairs');
-      }
-
-      console.log('Bulk import successful');
-      setBulkPairsText('');
-      fetchPairs();
-    } catch (error) {
-      console.error('Error in handleBulkImport:', error);
-      setBulkImportError(
-        error instanceof Error ? error.message : 'Failed to import pairs',
-      );
-    }
-  };
-
-  const handleDeletePair = async (pairId: number) => {
-    console.log('Deleting pair:', pairId);
-    if (
-      !confirm('Are you sure you want to delete this pair and all its votes?')
-    ) {
-      console.log('Pair deletion cancelled by user');
-      return;
-    }
+  const handleDeletePoll = async (pollId: number) => {
+    console.log('Deleting poll:', pollId);
 
     const sessionData = sessionStorage.getItem('adminSession');
     if (!sessionData) {
-      console.log('No session data found when deleting pair');
+      console.log('No session data found when deleting poll');
       return;
     }
+
     try {
       const { authToken } = JSON.parse(sessionData);
-      console.log('Using auth token for delete pair:', authToken);
-      const res = await fetch(`/api/admin/pairs/${pairId}`, {
+      console.log('Using auth token for delete poll:', authToken);
+      const res = await fetch(`/api/admin/polls/${pollId}`, {
         method: 'DELETE',
         headers: { Authorization: authToken },
       });
-      console.log('Delete pair API response status:', res.status);
+      console.log('Delete poll API response status:', res.status);
 
       if (res.ok) {
-        console.log('Pair deleted successfully, refreshing pairs');
-        fetchPairs();
+        console.log('Poll deleted successfully, refreshing data');
+        fetchPolls();
+        toast.success('Poll deleted successfully');
+        // Reset state
+        setShowDeleteConfirm(false);
+        setPollToDelete(null);
+        setDeleteConfirmText('');
+        if (selectedPollId === pollId) {
+          setSelectedPollId(null);
+          setPairs([]);
+          setGroups([]);
+        }
       } else {
-        console.error('Failed to delete pair:', res.statusText);
-        toast.error('Failed to delete pair');
+        console.error('Failed to delete poll:', res.statusText);
+        toast.error('Failed to delete poll');
       }
     } catch (error) {
-      console.error('Error in handleDeletePair:', error);
+      console.error('Error in handleDeletePoll:', error);
+      toast.error('Error deleting poll');
+    }
+  };
+
+  const openDeleteConfirm = (poll: Poll) => {
+    setPollToDelete(poll);
+    setShowDeleteConfirm(true);
+    setDeleteConfirmText('');
+  };
+
+  const closeDeleteConfirm = () => {
+    setShowDeleteConfirm(false);
+    setPollToDelete(null);
+    setDeleteConfirmText('');
+  };
+
+  const confirmDelete = () => {
+    console.log('Confirming delete:', {
+      entered: deleteConfirmText,
+      expected: pollToDelete?.title,
+      match: deleteConfirmText === pollToDelete?.title,
+    });
+
+    if (pollToDelete && deleteConfirmText === pollToDelete.title) {
+      handleDeletePoll(pollToDelete.id);
+    } else {
+      toast.error('Poll title does not match');
     }
   };
 
   console.log('Current state - pairs:', pairs.length, 'voters:', voters.length);
 
   return (
-    <div className="mx-auto max-w-6xl p-4">
-      <Header
-        title="Admin Dashboard"
-        showAdminLink={false}
-        showHomeLink={true}
-        showSignOut={true}
-        onSignOut={handleSignOut}
-      />
+    <div className="container mx-auto max-w-6xl px-4 py-8">
+      <Header />
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <Button onClick={handleSignOut} variant="outline">
+          Sign Out
+        </Button>
+      </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <section>
-          <Card className="mb-8">
-            <CardContent>
-              <h2 className="mb-4 text-xl font-medium">Bulk Import Pairs</h2>
-              <form onSubmit={handleBulkImport}>
-                <div className="mb-4">
-                  <p className="mb-2 text-sm text-gray-600">
-                    Enter pairs of options, one option per line. Separate
-                    different pairs with a blank line.
+      {showDeleteConfirm && pollToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+            <h2 className="mb-4 text-xl font-bold text-red-600">Delete Poll</h2>
+            <p className="mb-4">
+              Are you sure you want to delete the poll "{pollToDelete.title}"?
+              This action cannot be undone.
+            </p>
+            <p className="mb-4 font-medium">
+              Type the poll name to confirm deletion:
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type poll name here"
+              className="mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeDeleteConfirm}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDelete}
+                disabled={
+                  pollToDelete && deleteConfirmText !== pollToDelete.title
+                }
+              >
+                Delete Poll
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Tabs
+        defaultValue="polls"
+        className="w-full"
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
+        <TabsList className="mb-6 w-full justify-start">
+          <TabsTrigger value="polls">Polls</TabsTrigger>
+          <TabsTrigger value="pairs">Pairs & Groups</TabsTrigger>
+          <TabsTrigger value="voters">Voters</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="polls">
+          <div className="grid gap-8">
+            <Card className="shadow-sm">
+              <CardContent className="pt-6">
+                <h2 className="mb-4 text-xl font-bold">Create New Poll</h2>
+                <form onSubmit={handleCreatePoll} className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="pollTitle"
+                      className="mb-1 block text-sm font-medium"
+                    >
+                      Poll Title
+                    </label>
+                    <Input
+                      id="pollTitle"
+                      value={pollTitle}
+                      onChange={(e) => setPollTitle(e.target.value)}
+                      placeholder="Enter poll title"
+                      className="w-full"
+                    />
+                  </div>
+                  <Button type="submit" disabled={!pollTitle.trim()}>
+                    Create Poll
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardContent className="pt-6">
+                <h2 className="mb-4 text-xl font-bold">Manage Polls</h2>
+                {polls.length === 0 ? (
+                  <p className="text-gray-500">
+                    No polls found. Create one above.
                   </p>
-                  <Textarea
-                    value={bulkPairsText}
-                    onChange={(e) => setBulkPairsText(e.target.value)}
-                    placeholder="Option A\nOption B\n\nOption C\nOption D"
-                    className="min-h-[200px] font-mono"
-                    required
-                  />
-                </div>
-                {bulkImportError && (
-                  <div className="mb-4 text-sm text-red-600">
-                    {bulkImportError}
+                ) : (
+                  <div className="space-y-4">
+                    {polls.map((poll) => (
+                      <div
+                        key={poll.id}
+                        className="flex flex-col justify-between gap-4 rounded-lg border p-4 transition-colors hover:bg-gray-50 md:flex-row md:items-center"
+                      >
+                        <div>
+                          <h3 className="font-bold">{poll.title}</h3>
+                          <p className="text-sm text-gray-500">
+                            {poll.isActive ? (
+                              <span className="font-medium text-green-600">
+                                Active
+                              </span>
+                            ) : poll.isClosed ? (
+                              <span className="font-medium text-red-600">
+                                Closed
+                              </span>
+                            ) : (
+                              <span className="text-gray-600">Inactive</span>
+                            )}
+                            {' • '}
+                            {poll._count.pairs} pairs
+                            {' • '}
+                            {poll._count.voters} voters
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handlePollSelect(poll.id)}
+                          >
+                            Manage Pairs
+                          </Button>
+                          {!poll.isActive && !poll.isClosed && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleActivatePoll(poll.id)}
+                            >
+                              Activate
+                            </Button>
+                          )}
+                          {!poll.isClosed && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleClosePoll(poll.id)}
+                            >
+                              Close
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/poll/${poll.id}`)}
+                          >
+                            View Results
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openDeleteConfirm(poll)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-                <Button type="submit">Import Pairs</Button>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-          <Card>
-            <CardContent>
-              <h2 className="mb-4 text-xl font-medium">Add a Single Pair</h2>
-              <form onSubmit={handleAddPair}>
-                <div className="mb-2">
-                  <input
-                    type="text"
-                    placeholder="Option A"
-                    value={optionA}
-                    onChange={(e) => setOptionA(e.target.value)}
-                    className="w-full rounded border p-2"
-                    required
-                  />
-                </div>
-                <div className="mb-2">
-                  <input
-                    type="text"
-                    placeholder="Option B"
-                    value={optionB}
-                    onChange={(e) => setOptionB(e.target.value)}
-                    className="w-full rounded border p-2"
-                    required
-                  />
-                </div>
-                <Button type="submit">Add Pair</Button>
-              </form>
-            </CardContent>
-          </Card>
+        <TabsContent value="pairs">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div>
+              <Card className="mb-6 shadow-sm">
+                <CardContent className="pt-6">
+                  <h2 className="mb-4 text-xl font-bold">Select Poll</h2>
+                  <select
+                    value={selectedPollId || ''}
+                    onChange={(e) => handlePollSelect(Number(e.target.value))}
+                    className="focus:ring-primary/20 w-full rounded-md border p-2 transition-colors focus:border-primary focus:ring-2"
+                  >
+                    <option value="">Select a poll</option>
+                    {polls.map((poll) => (
+                      <option key={poll.id} value={poll.id}>
+                        {poll.title} ({poll._count.pairs} pairs)
+                      </option>
+                    ))}
+                  </select>
+                </CardContent>
+              </Card>
 
-          <Card className="mt-8">
-            <CardContent>
-              <h2 className="mb-4 text-xl font-medium">
-                Current Pairs and Votes
-              </h2>
-              <div className="space-y-4">
-                {pairs.map((pair) => (
-                  <div key={pair.id} className="rounded border p-4">
-                    <div className="mb-2 flex items-start justify-between">
+              {selectedPollId && (
+                <Card className="mb-6 shadow-sm">
+                  <CardContent className="pt-6">
+                    <h2 className="mb-4 text-xl font-bold">Create New Group</h2>
+                    <form onSubmit={handleCreateGroup} className="space-y-4">
                       <div>
-                        <p className="font-medium">
-                          {pair.optionA} vs {pair.optionB}
-                        </p>
-                        <p>
-                          {pair.optionA}:{' '}
-                          {
-                            pair.votes.filter(
-                              (v) => v.selection === pair.optionA,
-                            ).length
-                          }
-                        </p>
-                        <p>
-                          {pair.optionB}:{' '}
-                          {
-                            pair.votes.filter(
-                              (v) => v.selection === pair.optionB,
-                            ).length
-                          }
-                        </p>
+                        <label
+                          htmlFor="groupTitle"
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Group Title
+                        </label>
+                        <Input
+                          id="groupTitle"
+                          value={groupTitle}
+                          onChange={(e) => setGroupTitle(e.target.value)}
+                          placeholder="Enter group title"
+                          className="w-full"
+                        />
                       </div>
-                      <Button
-                        variant="destructive"
-                        onClick={() => handleDeletePair(pair.id)}
-                        size="sm"
-                      >
-                        Delete
+                      <Button type="submit" disabled={!groupTitle.trim()}>
+                        Create Group
                       </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
 
-        <section>
-          <Card>
-            <CardContent>
-              <h2 className="mb-4 text-xl font-medium">Voters</h2>
-              <div className="space-y-4">
-                {voters.map((voter) => (
-                  <div key={voter.id} className="rounded border p-4">
-                    <div className="mb-2 flex items-start justify-between">
-                      <div>
-                        <p className="font-medium">Voter ID: {voter.id}</p>
-                        <p className="text-sm text-gray-600">
-                          Name: {voter.name}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Identifier: {voter.identifier}
-                        </p>
+              {selectedPollId && groups.length > 0 && (
+                <Card className="mb-6 shadow-sm">
+                  <CardContent className="pt-6">
+                    <h2 className="mb-4 text-xl font-bold">Select Group</h2>
+                    <select
+                      value={selectedGroupId || ''}
+                      onChange={(e) =>
+                        handleGroupSelect(
+                          e.target.value ? Number(e.target.value) : null,
+                        )
+                      }
+                      className="focus:ring-primary/20 w-full rounded-md border p-2 transition-colors focus:border-primary focus:ring-2"
+                    >
+                      <option value="">All groups</option>
+                      {groups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.title} (
+                          {group._count?.pairs || group.pairs.length} pairs)
+                        </option>
+                      ))}
+                    </select>
+                  </CardContent>
+                </Card>
+              )}
+
+              {selectedPollId && (
+                <Card className="shadow-sm">
+                  <CardContent className="pt-6">
+                    <h2 className="mb-4 text-xl font-bold">Add New Pair</h2>
+                    <form onSubmit={handleAddPair} className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor="optionA"
+                            className="mb-1 block text-sm font-medium"
+                          >
+                            Option A
+                          </label>
+                          <Input
+                            id="optionA"
+                            value={optionA}
+                            onChange={(e) => setOptionA(e.target.value)}
+                            placeholder="Enter option A"
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="optionB"
+                            className="mb-1 block text-sm font-medium"
+                          >
+                            Option B
+                          </label>
+                          <Input
+                            id="optionB"
+                            value={optionB}
+                            onChange={(e) => setOptionB(e.target.value)}
+                            placeholder="Enter option B"
+                            className="w-full"
+                          />
+                        </div>
                       </div>
                       <Button
-                        variant="destructive"
+                        type="submit"
+                        disabled={!optionA.trim() || !optionB.trim()}
+                      >
+                        Add Pair
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            <div>
+              {selectedPollId && (
+                <Card className="mb-6 shadow-sm">
+                  <CardContent className="pt-6">
+                    <h2 className="mb-4 text-xl font-bold">
+                      Bulk Import Pairs
+                    </h2>
+                    <form onSubmit={handleBulkImport} className="space-y-4">
+                      <div>
+                        <label
+                          htmlFor="bulkPairs"
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Enter pairs (one option per line, every two lines form
+                          a pair)
+                        </label>
+                        <Textarea
+                          id="bulkPairs"
+                          value={bulkPairsText}
+                          onChange={(e) => setBulkPairsText(e.target.value)}
+                          placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"
+                          className="h-40 w-full resize-y"
+                        />
+                      </div>
+                      {bulkImportError && (
+                        <div className="text-sm text-red-500">
+                          {bulkImportError}
+                        </div>
+                      )}
+                      <Button type="submit" disabled={!bulkPairsText.trim()}>
+                        Import Pairs
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card className="shadow-sm">
+                <CardContent className="pt-6">
+                  <h2 className="mb-4 text-xl font-bold">
+                    {selectedGroupId
+                      ? `Pairs in ${groups.find((g) => g.id === selectedGroupId)?.title || 'Selected Group'}`
+                      : selectedPollId
+                        ? 'All Pairs in Selected Poll'
+                        : 'All Pairs'}
+                  </h2>
+                  {pairs.length === 0 ? (
+                    <p className="text-gray-500">No pairs found.</p>
+                  ) : (
+                    <div className="max-h-[600px] space-y-4 overflow-y-auto pr-2">
+                      {pairs.map((pair) => (
+                        <div
+                          key={pair.id}
+                          className="flex items-center justify-between rounded-md border p-4 transition-colors hover:bg-gray-50"
+                        >
+                          <div>
+                            <div className="font-medium">A: {pair.optionA}</div>
+                            <div className="font-medium">B: {pair.optionB}</div>
+                            {pair.group && (
+                              <div className="text-sm text-gray-500">
+                                Group: {pair.group.title}
+                              </div>
+                            )}
+                            <div className="text-sm text-gray-500">
+                              Votes: {pair.votes.length}
+                            </div>
+                          </div>
+                          {/* Add delete button if needed */}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="voters">
+          <Card className="shadow-sm">
+            <CardContent className="pt-6">
+              <h2 className="mb-4 text-xl font-bold">Voters</h2>
+              {voters.length === 0 ? (
+                <p className="text-gray-500">No voters found.</p>
+              ) : (
+                <div className="max-h-[600px] space-y-4 overflow-y-auto pr-2">
+                  {voters.map((voter) => (
+                    <div
+                      key={voter.id}
+                      className="flex flex-col justify-between rounded-lg border p-4 transition-colors hover:bg-gray-50 md:flex-row md:items-center"
+                    >
+                      <div>
+                        <div className="font-medium">{voter.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {voter._count?.votes || voter.votes?.length || 0}{' '}
+                          votes
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleDeleteVoter(voter.id)}
                       >
                         Delete
                       </Button>
                     </div>
-                    <div className="mt-2">
-                      <p className="mb-1 text-sm font-medium">Vote History:</p>
-                      <ul className="space-y-1 text-sm">
-                        {voter.votes.map((vote) => (
-                          <li key={vote.id}>
-                            Voted for {vote.selection} in "{vote.pair.optionA}{' '}
-                            vs {vote.pair.optionB}"
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
-        </section>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

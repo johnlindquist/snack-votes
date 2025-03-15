@@ -11,10 +11,37 @@ datasource db {
   url      = env("POSTGRES_PRISMA_URL")
 }
 
+model Poll {
+  id        Int      @id @default(autoincrement())
+  title     String
+  isActive  Boolean  @default(false)
+  isClosed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  pairs     Pair[]   // Keeping this relation for backward compatibility during migration
+  voters    Voter[]
+  groups    Group[]  // New relation: A poll has many groups
+}
+
+model Group {
+  id        Int      @id @default(autoincrement())
+  title     String
+  pollId    Int
+  poll      Poll     @relation(fields: [pollId], references: [id])
+  pairs     Pair[]   // A group has many pairs
+}
+
 model Pair {
   id       Int      @id @default(autoincrement())
   optionA  String
   optionB  String
+  
+  pollId   Int
+  poll     Poll     @relation(fields: [pollId], references: [id])
+  
+  groupId  Int?     // Optional during migration
+  group    Group?   @relation(fields: [groupId], references: [id])
+  
   votes    Vote[]
 }
 
@@ -22,6 +49,10 @@ model Voter {
   id         Int      @id @default(autoincrement())
   name       String   // Voter's name
   identifier String   // e.g. could be an email, IP, or a cookie value
+  
+  pollId     Int
+  poll       Poll     @relation(fields: [pollId], references: [id])
+  
   votes      Vote[]
 }
 

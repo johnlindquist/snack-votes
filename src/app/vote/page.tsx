@@ -5,13 +5,31 @@ import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Header } from '@/components/ui/header';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { HamburgerMenu } from '@/components/ui/hamburger-menu';
 import { Toaster, toast } from 'react-hot-toast';
 import confetti from 'canvas-confetti';
+import Link from 'next/link';
 
 type Pair = {
   id: number;
   optionA: string;
   optionB: string;
+  groupId?: number;
+};
+
+type Group = {
+  id: number;
+  title: string;
+  pairs: Pair[];
+};
+
+type Poll = {
+  id: number;
+  title: string;
+  isActive: boolean;
+  isClosed: boolean;
+  pairs: Pair[]; // Keep for backward compatibility
+  groups: Group[];
 };
 
 // Function to trigger confetti
@@ -59,6 +77,7 @@ const triggerConfetti = () => {
 };
 
 export default function VotePage() {
+  const [activePoll, setActivePoll] = useState<Poll | null>(null);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [votes, setVotes] = useState<{ [key: number]: string }>({});
   const [voterName, setVoterName] = useState('');
@@ -77,9 +96,9 @@ export default function VotePage() {
     return process.env.NODE_ENV === 'development';
   };
 
-  const fetchPairs = useCallback(() => {
+  const fetchActivePoll = useCallback(() => {
     console.log(
-      `Fetching pairs from API... (Attempt ${retryCount + 1}/${maxRetries + 1})`,
+      `Fetching active poll from API... (Attempt ${retryCount + 1}/${maxRetries + 1})`,
     );
     setIsLoading(true);
     setFetchError(null);
@@ -93,7 +112,7 @@ export default function VotePage() {
 
     // Add cache-busting parameter to prevent caching
     const timestamp = new Date().getTime();
-    fetch(`/api/pairs?t=${timestamp}`)
+    fetch(`/api/polls/active?t=${timestamp}`)
       .then((res) => {
         console.log('API response status:', res.status);
         console.log(
@@ -102,6 +121,15 @@ export default function VotePage() {
         );
 
         if (!res.ok) {
+          if (res.status === 404) {
+            console.log('No active poll found');
+            setActivePoll(null);
+            setPairs([]);
+            setIsLoading(false);
+            clearTimeout(fetchTimeout);
+            return null;
+          }
+
           console.error('API response not OK:', res.status, res.statusText);
           throw new Error(
             `API response error: ${res.status} ${res.statusText}`,
@@ -114,22 +142,13 @@ export default function VotePage() {
         // Clear the timeout since we got a response
         clearTimeout(fetchTimeout);
 
+        if (!data) return;
+
         console.log('API data received:', data);
         console.log('Data type:', typeof data);
-        console.log('Is array?', Array.isArray(data));
-        console.log('Data length:', data?.length);
 
-        if (!data || !Array.isArray(data)) {
-          console.error('Invalid data format received:', data);
-          setFetchError('Invalid data format received from API');
-          return;
-        }
-
-        if (data.length === 0) {
-          console.warn('Empty pairs array received from API');
-        }
-
-        setPairs(data);
+        setActivePoll(data);
+        setPairs(data.pairs || []);
         setIsLoading(false);
         setRetryCount(0); // Reset retry count on success
       })
@@ -137,9 +156,9 @@ export default function VotePage() {
         // Clear the timeout since we got an error
         clearTimeout(fetchTimeout);
 
-        console.error('Error fetching pairs:', err);
+        console.error('Error fetching active poll:', err);
         console.error('Error details:', err.message);
-        setFetchError(`Failed to fetch pairs: ${err.message}`);
+        setFetchError(`Failed to fetch active poll: ${err.message}`);
         setIsLoading(false);
       });
 
@@ -151,14 +170,14 @@ export default function VotePage() {
   useEffect(() => {
     console.log('VotePage component mounted');
     console.log('Environment:', process.env.NODE_ENV);
-    fetchPairs();
-  }, [fetchPairs]);
+    fetchActivePoll();
+  }, [fetchActivePoll]);
 
   // Retry logic
   const handleRetry = () => {
     if (retryCount < maxRetries) {
       setRetryCount((prev) => prev + 1);
-      fetchPairs();
+      fetchActivePoll();
     } else {
       console.error('Maximum retry attempts reached');
       setFetchError('Maximum retry attempts reached. Please try again later.');
@@ -183,14 +202,25 @@ export default function VotePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!activePoll) {
+      setFormError('No active poll available');
+      return;
+    }
+
     // Validate voter name
     if (!voterName.trim()) {
       setFormError('Please enter your name');
       return;
     }
 
+    // Get all pairs from all groups
+    const allPairs =
+      activePoll.groups.length > 0
+        ? activePoll.groups.flatMap((group) => group.pairs)
+        : activePoll.pairs;
+
     // Check if all pairs have been voted on
-    const unvotedPairs = pairs.filter((pair) => !votes[pair.id]);
+    const unvotedPairs = allPairs.filter((pair) => !votes[pair.id]);
     if (unvotedPairs.length > 0) {
       setFormError('Please vote on all pairs before submitting!');
       return;
@@ -208,6 +238,7 @@ export default function VotePage() {
       body: JSON.stringify({
         votes: voteArray,
         voterName: voterName.trim(),
+        pollId: activePoll.id,
       }),
     });
 
@@ -227,18 +258,62 @@ export default function VotePage() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 3000);
     } else {
-      toast.error('There was an error submitting your votes.', {
-        duration: 4000,
-        style: {
-          background: '#fee2e2',
-          color: '#991b1b',
-          padding: '16px',
-          borderRadius: '8px',
+      const errorData = await response.json();
+      toast.error(
+        errorData.error || 'There was an error submitting your votes.',
+        {
+          duration: 4000,
+          style: {
+            background: '#fee2e2',
+            color: '#991b1b',
+            padding: '16px',
+            borderRadius: '8px',
+          },
         },
-      });
-      setFormError('There was an error submitting your votes.');
+      );
+      setFormError(
+        errorData.error || 'There was an error submitting your votes.',
+      );
     }
   };
+
+  // If there's no active poll
+  if (!isLoading && !activePoll) {
+    return (
+      <>
+        <Header />
+        <div className="container mx-auto px-4 py-12">
+          <div className="mx-auto max-w-md text-center">
+            <h2 className="mb-4 text-2xl font-bold">No Active Poll</h2>
+            <p className="mb-6 text-gray-600">
+              There is no active poll available at the moment. Please check back
+              later.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // If the poll is closed
+  if (!isLoading && activePoll && activePoll.isClosed) {
+    return (
+      <>
+        <Header />
+        <div className="container mx-auto px-4 py-12">
+          <div className="mx-auto max-w-md text-center">
+            <h2 className="mb-4 text-2xl font-bold">{activePoll.title}</h2>
+            <p className="mb-6 text-gray-600">
+              This poll is now closed. Thank you for your interest!
+            </p>
+            <Link href={`/poll/${activePoll.id}`}>
+              <Button>View Results</Button>
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -250,7 +325,7 @@ export default function VotePage() {
           <div className="relative mx-4 w-full max-w-md scale-100 transform rounded-2xl bg-white p-8 shadow-2xl duration-300 animate-in fade-in zoom-in">
             <div className="space-y-4 text-center">
               <div className="text-6xl">🎉</div>
-              <h2 className="text-3xl font-bold text-purple-800">
+              <h2 className="text-3xl font-bold text-primary">
                 Thanks for voting!
               </h2>
               <p className="text-xl text-gray-600">
@@ -264,38 +339,27 @@ export default function VotePage() {
         </div>
       )}
 
-      <div className={showSuccessModal ? 'pointer-events-none opacity-50' : ''}>
-        <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-          <Header title="Vote for Your Favorite Snacks" />
+      <div
+        className={`min-h-screen bg-gray-50 ${showSuccessModal ? 'pointer-events-none opacity-50' : ''}`}
+      >
+        <div className="relative mx-auto max-w-3xl px-4 py-8 sm:px-6">
+          <HamburgerMenu
+            showAdminLink={true}
+            showRefresh={true}
+            showDiagnostics={isDev() || !!fetchError}
+            isDiagnosticsVisible={showDiagnostics}
+            isLoading={isLoading}
+            onRefresh={fetchActivePoll}
+            onToggleDiagnostics={() => setShowDiagnostics(!showDiagnostics)}
+          />
 
-          {/* Debug button - only visible in development or when there's an error */}
-          {(isDev() || fetchError) && (
-            <div className="mb-4 text-right">
-              <button
-                type="button"
-                onClick={() => setShowDiagnostics(!showDiagnostics)}
-                className="rounded bg-gray-200 px-3 py-1 text-xs text-gray-700 hover:bg-gray-300"
-              >
-                {showDiagnostics ? 'Hide' : 'Show'} Diagnostics
-              </button>
-            </div>
-          )}
-
-          {/* Refresh button - always visible */}
-          <div className="mb-4 text-right">
-            <button
-              type="button"
-              onClick={() => fetchPairs()}
-              className="rounded bg-blue-100 px-3 py-1 text-xs text-blue-700 hover:bg-blue-200"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Refreshing...' : 'Refresh Snacks'}
-            </button>
+          <div className="mb-10">
+            <Header title="Vote for Your Favorite Snacks" />
           </div>
 
           {/* Diagnostic information */}
           {showDiagnostics && (
-            <div className="mb-6 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs">
+            <div className="mb-8 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs">
               <h3 className="mb-2 font-bold">Diagnostic Information:</h3>
               <p>
                 <strong>Environment:</strong> {process.env.NODE_ENV}
@@ -307,7 +371,7 @@ export default function VotePage() {
               <p>
                 <strong>API URL:</strong>{' '}
                 {typeof window !== 'undefined'
-                  ? `${window.location.origin}/api/pairs`
+                  ? `${window.location.origin}/api/polls/active`
                   : 'N/A'}
               </p>
 
@@ -323,7 +387,7 @@ export default function VotePage() {
                         href="/api/debug/db"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
+                        className="text-secondary hover:underline"
                       >
                         Test Database Connection
                       </a>
@@ -351,15 +415,20 @@ export default function VotePage() {
           )}
 
           {isLoading && (
-            <div className="my-8 text-center">
-              <p className="text-lg font-medium text-slate-700">
-                Loading snack pairs...
-              </p>
+            <div className="my-12 flex items-center justify-center">
+              <div className="rounded-lg bg-white p-8 shadow-md">
+                <div className="flex flex-col items-center">
+                  <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
+                  <p className="mt-4 text-lg font-medium text-slate-700">
+                    Loading snack pairs...
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
           {fetchError && (
-            <div className="my-8 rounded-lg bg-red-50 p-4 text-center">
+            <div className="my-8 rounded-lg bg-red-50 p-6 text-center shadow-sm">
               <p className="text-lg font-medium text-red-700">
                 Error: {fetchError}
               </p>
@@ -371,7 +440,7 @@ export default function VotePage() {
               {retryCount < maxRetries && (
                 <button
                   onClick={handleRetry}
-                  className="mt-4 rounded-md bg-red-100 px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-200"
+                  className="mt-4 rounded-full bg-red-100 px-6 py-2 text-sm font-medium text-red-800 transition-colors hover:bg-red-200"
                 >
                   Retry ({retryCount}/{maxRetries})
                 </button>
@@ -384,8 +453,8 @@ export default function VotePage() {
           )}
 
           {!isLoading && !fetchError && pairs.length === 0 && (
-            <div className="my-8 rounded-lg bg-yellow-50 p-4 text-center">
-              <p className="text-lg font-medium text-yellow-700">
+            <div className="my-12 rounded-lg bg-yellow-50 p-8 text-center shadow-sm">
+              <p className="text-xl font-medium text-yellow-700">
                 No snack pairs available
               </p>
               <p className="mt-2 text-sm text-yellow-600">
@@ -395,46 +464,102 @@ export default function VotePage() {
           )}
 
           {!isLoading && !fetchError && pairs.length > 0 && (
-            <form key={formKey} onSubmit={handleSubmit} className="space-y-8">
-              {pairs.map((pair, index) => (
-                <Card key={pair.id}>
-                  <CardHeader>
-                    <p className="text-center font-medium text-slate-700">
-                      <span className="mr-2 inline-block rounded-full bg-purple-100 px-3 py-1 text-sm text-purple-800">
-                        {index + 1}/{pairs.length}
-                      </span>
-                      Pick your favorite snack!
-                    </p>
-                  </CardHeader>
-
-                  <CardContent>
-                    <ToggleGroup
-                      type="single"
-                      value={votes[pair.id]}
-                      onValueChange={(value) =>
-                        value && handleChange(pair.id, value)
-                      }
-                      className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2"
-                    >
-                      <ToggleGroupItem
-                        value={pair.optionA}
-                        className="h-16 w-full rounded-lg border-2 text-lg font-medium transition-all hover:bg-purple-50 data-[state=on]:border-transparent data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-indigo-600 data-[state=on]:text-white"
+            <form key={formKey} onSubmit={handleSubmit} className="space-y-12">
+              {activePoll &&
+              activePoll.groups &&
+              activePoll.groups.length > 0 ? (
+                // If we have groups, display pairs by group
+                activePoll.groups.map((group) => (
+                  <div key={group.id} className="mb-12">
+                    <div className="mb-6 flex items-center">
+                      <h2 className="text-2xl font-bold text-primary">
+                        {group.title}
+                      </h2>
+                      <div className="from-primary/30 ml-4 h-px flex-1 bg-gradient-to-r to-transparent"></div>
+                    </div>
+                    <div className="space-y-6">
+                      {group.pairs.map((pair) => (
+                        <Card
+                          key={pair.id}
+                          className="hover:border-primary/50 overflow-hidden transition-all hover:shadow-lg"
+                        >
+                          <CardHeader className="bg-primary/5 py- border-b border-slate-100">
+                            <h3 className="text-md font-medium text-primary">
+                              Choose One:
+                            </h3>
+                          </CardHeader>
+                          <CardContent>
+                            <ToggleGroup
+                              type="single"
+                              value={votes[pair.id] || ''}
+                              onValueChange={(value) =>
+                                handleChange(pair.id, value)
+                              }
+                              className="flex flex-col gap-3 sm:flex-row"
+                            >
+                              <ToggleGroupItem
+                                value={pair.optionA}
+                                className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
+                              >
+                                {pair.optionA}
+                              </ToggleGroupItem>
+                              <ToggleGroupItem
+                                value={pair.optionB}
+                                className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
+                              >
+                                {pair.optionB}
+                              </ToggleGroupItem>
+                            </ToggleGroup>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                // Fallback to flat list of pairs if no groups
+                <div className="space-y-6">
+                  {activePoll &&
+                    activePoll.pairs.map((pair) => (
+                      <Card
+                        key={pair.id}
+                        className="overflow-hidden transition-all hover:border-primary hover:shadow-lg"
                       >
-                        {pair.optionA}
-                      </ToggleGroupItem>
-                      <ToggleGroupItem
-                        value={pair.optionB}
-                        className="h-16 w-full rounded-lg border-2 text-lg font-medium transition-all hover:bg-purple-50 data-[state=on]:border-transparent data-[state=on]:bg-gradient-to-r data-[state=on]:from-purple-600 data-[state=on]:to-indigo-600 data-[state=on]:text-white"
-                      >
-                        {pair.optionB}
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </CardContent>
-                </Card>
-              ))}
+                        <CardHeader className="bg-primary/5 border-b border-slate-100 py-4">
+                          <h3 className="text-sm font-medium text-primary">
+                            Choose One:
+                          </h3>
+                        </CardHeader>
+                        <CardContent className="pb-4 pt-6">
+                          <ToggleGroup
+                            type="single"
+                            value={votes[pair.id] || ''}
+                            onValueChange={(value) =>
+                              handleChange(pair.id, value)
+                            }
+                            className="flex flex-col gap-3 sm:flex-row"
+                          >
+                            <ToggleGroupItem
+                              value={pair.optionA}
+                              className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
+                            >
+                              {pair.optionA}
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                              value={pair.optionB}
+                              className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
+                            >
+                              {pair.optionB}
+                            </ToggleGroupItem>
+                          </ToggleGroup>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              )}
 
-              <Card>
-                <CardContent className="pt-6">
+              <Card className="border-secondary-100 shadow-md transition-all hover:shadow-lg">
+                <CardContent className="py-6">
                   <div className="space-y-2">
                     <label
                       htmlFor="voterName"
@@ -450,7 +575,7 @@ export default function VotePage() {
                         setVoterName(e.target.value);
                         setFormError('');
                       }}
-                      className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-purple-500"
+                      className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-primary"
                       required
                       placeholder="Enter your name"
                     />
@@ -459,16 +584,16 @@ export default function VotePage() {
               </Card>
 
               {formError && (
-                <div className="text-center font-medium text-red-600">
-                  {formError}
+                <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-center shadow-sm">
+                  <p className="font-medium text-red-600">{formError}</p>
                 </div>
               )}
 
-              <div className="pt-8 text-center">
+              <div className="py-6 text-center">
                 <Button
                   type="submit"
                   size="lg"
-                  className="rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 px-10 py-6 text-lg font-medium shadow-lg transition-all hover:from-purple-700 hover:to-indigo-700 hover:shadow-xl"
+                  className="rounded-full px-10 py-6 text-lg font-medium shadow-md transition-all hover:shadow-lg"
                 >
                   Submit Votes
                 </Button>
