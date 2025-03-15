@@ -97,9 +97,13 @@ export default function VotePage() {
   };
 
   const fetchActivePoll = useCallback(() => {
+    console.log('************************');
     console.log(
-      `Fetching active poll from API... (Attempt ${retryCount + 1}/${maxRetries + 1})`,
+      `Fetching active poll from client - (Attempt ${retryCount + 1}/${maxRetries + 1})`,
     );
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('************************');
+
     setIsLoading(true);
     setFetchError(null);
 
@@ -112,8 +116,10 @@ export default function VotePage() {
 
     // Add cache-busting parameter to prevent caching
     const timestamp = new Date().getTime();
+    console.log('Starting fetch request to /api/polls/active');
     fetch(`/api/polls/active?t=${timestamp}`)
       .then((res) => {
+        console.log('API response received');
         console.log('API response status:', res.status);
         console.log(
           'API response headers:',
@@ -122,7 +128,7 @@ export default function VotePage() {
 
         if (!res.ok) {
           if (res.status === 404) {
-            console.log('No active poll found');
+            console.log('No active poll found - 404 response');
             setActivePoll(null);
             setPairs([]);
             setIsLoading(false);
@@ -136,21 +142,26 @@ export default function VotePage() {
           );
         }
 
+        console.log('API response OK, parsing JSON data');
         return res.json();
       })
       .then((data) => {
         // Clear the timeout since we got a response
         clearTimeout(fetchTimeout);
 
-        if (!data) return;
+        if (!data) {
+          console.log('No data returned from API');
+          return;
+        }
 
-        console.log('API data received:', data);
-        console.log('Data type:', typeof data);
+        console.log('API data received successfully');
+        console.log('Active poll data:', JSON.stringify(data, null, 2));
 
         setActivePoll(data);
         setPairs(data.pairs || []);
         setIsLoading(false);
         setRetryCount(0); // Reset retry count on success
+        console.log(`Successfully set active poll: "${data.title}"`);
       })
       .catch((err) => {
         // Clear the timeout since we got an error
@@ -160,6 +171,11 @@ export default function VotePage() {
         console.error('Error details:', err.message);
         setFetchError(`Failed to fetch active poll: ${err.message}`);
         setIsLoading(false);
+      })
+      .finally(() => {
+        console.log('************************');
+        console.log('Active poll fetch request completed');
+        console.log('************************');
       });
 
     // Cleanup function to clear the timeout if the component unmounts
@@ -349,6 +365,7 @@ export default function VotePage() {
             showDiagnostics={isDev() || !!fetchError}
             isDiagnosticsVisible={showDiagnostics}
             isLoading={isLoading}
+            showDbDebug={true}
             onRefresh={fetchActivePoll}
             onToggleDiagnostics={() => setShowDiagnostics(!showDiagnostics)}
           />
@@ -356,6 +373,20 @@ export default function VotePage() {
           <div className="mb-10">
             <Header title="Vote for Your Favorite Snacks" />
           </div>
+
+          {/* Active Poll Indicator */}
+          {!isLoading && activePoll && (
+            <div className="border-primary/20 bg-primary/5 mb-8 rounded-lg border p-4 text-center shadow-sm">
+              <h2 className="text-lg font-medium text-primary">
+                <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-green-500"></span>
+                Active Poll:{' '}
+                <span className="font-bold">{activePoll.title}</span>
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Poll ID: {activePoll.id}
+              </p>
+            </div>
+          )}
 
           {/* Diagnostic information */}
           {showDiagnostics && (

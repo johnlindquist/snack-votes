@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/db';
+import prisma, { testConnection } from '@/lib/db';
 import crypto from 'crypto';
 
 export async function GET() {
+  console.log('************************');
   console.log('Debug API: Database connection test initiated');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('************************');
 
   // Allow in production for temporary debugging
   // if (process.env.NODE_ENV === 'production') {
@@ -15,16 +18,55 @@ export async function GET() {
   // }
 
   try {
-    // Test database connection by running a simple query
+    // Test connection status
     console.log('Debug API: Testing database connection...');
+    const connectionTestResult = await testConnection();
+    const connectionTestSuccess = connectionTestResult.success;
 
-    // Check if we can connect to the database
-    const pairCount = await prisma.pair.count();
-    const pollCount = await prisma.poll.count();
-    const voterCount = await prisma.voter.count();
+    // Gather additional info if connection is successful
+    let dbStats = {};
+    if (connectionTestSuccess) {
+      console.log(
+        'Debug API: Database connection successful, gathering stats...',
+      );
 
-    // Get a hash of the connection string to verify it's the same across requests
-    // without exposing the actual connection string
+      try {
+        // Collect database statistics
+        const [pairCount, pollCount, voterCount, activePollCount, activePoll] =
+          await Promise.all([
+            prisma.pair.count(),
+            prisma.poll.count(),
+            prisma.voter.count(),
+            prisma.poll.count({ where: { isActive: true } }),
+            prisma.poll.findFirst({
+              where: { isActive: true },
+              select: {
+                id: true,
+                title: true,
+                createdAt: true,
+              },
+            }),
+          ]);
+
+        dbStats = {
+          pairCount,
+          pollCount,
+          voterCount,
+          activePollCount,
+          activePoll,
+        };
+
+        console.log('Debug API: Database stats collected successfully');
+      } catch (statsError) {
+        console.error(
+          'Debug API: Error collecting database stats:',
+          statsError,
+        );
+        dbStats = { error: 'Failed to collect database stats' };
+      }
+    }
+
+    // Get a hash of the connection string
     const connectionHash = process.env.POSTGRES_PRISMA_URL
       ? crypto
           .createHash('md5')
@@ -35,27 +77,38 @@ export async function GET() {
 
     // Get database connection info (safely)
     const dbInfo = {
-      provider: 'postgresql', // Hardcoded since we can't access internal properties
+      provider: 'postgresql',
       url: process.env.POSTGRES_PRISMA_URL
         ? 'Set (masked for security)'
         : 'Not set',
       connectionHash,
-      pairCount,
-      pollCount,
-      voterCount,
+      connectionTest: {
+        success: connectionTestSuccess,
+        duration: connectionTestResult.duration,
+        ...(connectionTestResult.error
+          ? { error: connectionTestResult.error }
+          : {}),
+      },
+      ...dbStats,
       timestamp: new Date().toISOString(),
+      connectionStatus: global.dbConnectionStatus,
     };
 
-    console.log('Debug API: Database connection successful');
-    console.log('Debug API: Database info:', dbInfo);
+    console.log(
+      'Debug API: Database info collected:',
+      JSON.stringify(dbInfo, null, 2),
+    );
 
     return NextResponse.json({
-      status: 'success',
-      message: 'Database connection successful',
+      status: connectionTestSuccess ? 'success' : 'error',
+      message: connectionTestSuccess
+        ? 'Database connection successful'
+        : `Database connection failed: ${connectionTestResult.error}`,
       dbInfo,
       env: {
         NODE_ENV: process.env.NODE_ENV,
-        // Add other non-sensitive environment variables here
+        VERCEL_ENV: process.env.VERCEL_ENV || 'not-set',
+        VERCEL_REGION: process.env.VERCEL_REGION || 'not-set',
       },
     });
   } catch (error) {
@@ -71,14 +124,20 @@ export async function GET() {
     return NextResponse.json(
       {
         status: 'error',
-        message: 'Database connection failed',
+        message: 'Database connection test failed',
         error: error instanceof Error ? error.message : 'Unknown error',
         env: {
           NODE_ENV: process.env.NODE_ENV,
+          VERCEL_ENV: process.env.VERCEL_ENV || 'not-set',
           DATABASE_URL_SET: !!process.env.POSTGRES_PRISMA_URL,
         },
+        timestamp: new Date().toISOString(),
       },
       { status: 500 },
     );
+  } finally {
+    console.log('************************');
+    console.log('Debug API: Database connection test completed');
+    console.log('************************');
   }
 }

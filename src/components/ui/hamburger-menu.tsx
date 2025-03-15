@@ -10,6 +10,7 @@ interface HamburgerMenuProps {
   showAdminLink?: boolean;
   showRefresh?: boolean;
   showDiagnostics?: boolean;
+  showDbDebug?: boolean;
   isDiagnosticsVisible?: boolean;
   isLoading?: boolean;
   onRefresh?: () => void;
@@ -20,6 +21,7 @@ export function HamburgerMenu({
   showAdminLink = true,
   showRefresh = true,
   showDiagnostics = false,
+  showDbDebug = false,
   isDiagnosticsVisible = false,
   isLoading = false,
   onRefresh,
@@ -63,6 +65,17 @@ export function HamburgerMenu({
               }}
             >
               {isDiagnosticsVisible ? 'Hide' : 'Show'} Diagnostics
+            </NavButton>
+          )}
+
+          {showDbDebug && (
+            <NavButton
+              href="/api/debug/db"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+            >
+              Test Database Connection
             </NavButton>
           )}
         </nav>

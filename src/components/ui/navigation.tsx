@@ -18,6 +18,8 @@ interface NavButtonProps {
   disabled?: boolean;
   className?: string;
   children: React.ReactNode;
+  target?: string;
+  rel?: string;
 }
 
 export function NavButton({
@@ -26,6 +28,8 @@ export function NavButton({
   disabled = false,
   className = '',
   children,
+  target,
+  rel,
 }: NavButtonProps) {
   const buttonElement = (
     <Button
@@ -40,7 +44,11 @@ export function NavButton({
   );
 
   if (href) {
-    return <Link href={href}>{buttonElement}</Link>;
+    return (
+      <Link href={href} target={target} rel={rel}>
+        {buttonElement}
+      </Link>
+    );
   }
 
   return buttonElement;
