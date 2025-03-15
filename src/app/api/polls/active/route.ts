@@ -18,7 +18,16 @@ export async function GET() {
       console.error('Database connection failed:', dbError);
       return NextResponse.json(
         { error: 'Database connection failed' },
-        { status: 500 },
+        {
+          status: 500,
+          headers: {
+            'Cache-Control':
+              'no-store, no-cache, must-revalidate, proxy-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            'Surrogate-Control': 'no-store',
+          },
+        },
       );
     }
 
@@ -45,7 +54,16 @@ export async function GET() {
       console.log('No active poll found in the database');
       return NextResponse.json(
         { error: 'No active poll found' },
-        { status: 404 },
+        {
+          status: 404,
+          headers: {
+            'Cache-Control':
+              'no-store, no-cache, must-revalidate, proxy-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            'Surrogate-Control': 'no-store',
+          },
+        },
       );
     }
 
@@ -56,7 +74,15 @@ export async function GET() {
       `Poll has ${activePoll.groups.length} groups and ${activePoll.pairs.length} direct pairs`,
     );
 
-    return NextResponse.json(activePoll);
+    return NextResponse.json(activePoll, {
+      headers: {
+        'Cache-Control':
+          'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+        'Surrogate-Control': 'no-store',
+      },
+    });
   } catch (error) {
     console.error('Error fetching active poll:', error);
     console.error(
@@ -70,7 +96,16 @@ export async function GET() {
 
     return NextResponse.json(
       { error: 'Failed to fetch active poll' },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control':
+            'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'Surrogate-Control': 'no-store',
+        },
+      },
     );
   } finally {
     console.log('************************');

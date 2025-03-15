@@ -117,7 +117,15 @@ export default function VotePage() {
     // Add cache-busting parameter to prevent caching
     const timestamp = new Date().getTime();
     console.log('Starting fetch request to /api/polls/active');
-    fetch(`/api/polls/active?t=${timestamp}`)
+    fetch(`/api/polls/active?t=${timestamp}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+        // Add a random header value to bypass cache
+        'X-Cache-Bust': timestamp.toString(),
+      },
+    })
       .then((res) => {
         console.log('API response received');
         console.log('API response status:', res.status);
@@ -373,20 +381,6 @@ export default function VotePage() {
           <div className="mb-10">
             <Header title="Vote for Your Favorite Snacks" />
           </div>
-
-          {/* Active Poll Indicator */}
-          {!isLoading && activePoll && (
-            <div className="border-primary/20 bg-primary/5 mb-8 rounded-lg border p-4 text-center shadow-sm">
-              <h2 className="text-lg font-medium text-primary">
-                <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-green-500"></span>
-                Active Poll:{' '}
-                <span className="font-bold">{activePoll.title}</span>
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Poll ID: {activePoll.id}
-              </p>
-            </div>
-          )}
 
           {/* Diagnostic information */}
           {showDiagnostics && (
