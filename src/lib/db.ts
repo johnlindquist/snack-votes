@@ -51,7 +51,18 @@ const prismaClientOptions: Prisma.PrismaClientOptions =
       }
     : {};
 
-export const prisma = global.prisma || new PrismaClient(prismaClientOptions);
+// Add direct connection to primary database for critical reads
+export const prisma =
+  global.prisma ||
+  new PrismaClient({
+    ...prismaClientOptions,
+    // Force all reads to go to the primary database to ensure consistency
+    datasources: {
+      db: {
+        url: process.env.POSTGRES_PRISMA_URL,
+      },
+    },
+  });
 
 // Export connection testing function
 export async function testConnection() {

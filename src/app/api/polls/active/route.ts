@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: Request) {
   console.log('************************');
   console.log('GET /api/polls/active request received');
   console.log('Timestamp:', new Date().toISOString());
+
+  // Check if client is requesting a forced primary read
+  const forcePrimary = request.headers.get('X-Force-Primary') === 'true';
+  console.log('Force primary read:', forcePrimary ? 'Yes' : 'No');
+
   console.log('************************');
 
   try {
@@ -32,23 +37,35 @@ export async function GET() {
     }
 
     console.log('Fetching active poll from database');
-    const activePoll = await prisma.poll.findFirst({
-      where: { isActive: true },
-      include: {
-        pairs: true,
-        groups: {
-          include: {
-            pairs: true,
-          },
-          orderBy: {
-            id: 'asc',
+    const activePoll = await prisma.$transaction(async (tx) => {
+      // Use transaction to ensure we're reading from the primary database
+      return tx.poll.findFirst({
+        where: { isActive: true },
+        include: {
+          pairs: true,
+          groups: {
+            include: {
+              pairs: true,
+            },
+            orderBy: {
+              id: 'asc',
+            },
           },
         },
-      },
+      });
     });
 
     console.log('Active poll query completed');
     console.log('Active poll found:', activePoll ? 'Yes' : 'No');
+
+    if (activePoll) {
+      console.log(
+        `Active poll details - ID: ${activePoll.id}, Title: "${activePoll.title}", isActive: ${activePoll.isActive}`,
+      );
+      console.log(
+        `Poll has ${activePoll.groups.length} groups and ${activePoll.pairs.length} direct pairs`,
+      );
+    }
 
     if (!activePoll) {
       console.log('No active poll found in the database');
@@ -66,13 +83,6 @@ export async function GET() {
         },
       );
     }
-
-    console.log(
-      `Active poll details - ID: ${activePoll.id}, Title: "${activePoll.title}"`,
-    );
-    console.log(
-      `Poll has ${activePoll.groups.length} groups and ${activePoll.pairs.length} direct pairs`,
-    );
 
     return NextResponse.json(activePoll, {
       headers: {

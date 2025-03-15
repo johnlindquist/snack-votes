@@ -116,7 +116,7 @@ export default function VotePage() {
 
     // Add cache-busting parameter to prevent caching
     const timestamp = new Date().getTime();
-    console.log('Starting fetch request to /api/polls/active');
+    console.log(`Starting fetch request to /api/polls/active?t=${timestamp}`);
     fetch(`/api/polls/active?t=${timestamp}`, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -124,6 +124,8 @@ export default function VotePage() {
         Expires: '0',
         // Add a random header value to bypass cache
         'X-Cache-Bust': timestamp.toString(),
+        // Force primary read
+        'X-Force-Primary': 'true',
       },
     })
       .then((res) => {
