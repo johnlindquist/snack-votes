@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/ui/header';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Pie } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  ChartOptions,
+} from 'chart.js';
+
+// Register Chart.js components
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 type Vote = {
   id: number;
@@ -112,43 +123,87 @@ export default function PollResults() {
             const percentB =
               totalVotes > 0 ? Math.round((votesForB / totalVotes) * 100) : 0;
 
+            // Pie chart data
+            const chartData = {
+              labels: [
+                `${pair.optionA} (${votesForA} votes, ${percentA}%)`,
+                `${pair.optionB} (${votesForB} votes, ${percentB}%)`,
+              ],
+              datasets: [
+                {
+                  data: [votesForA, votesForB],
+                  backgroundColor: [
+                    'rgba(99, 102, 241, 0.8)',
+                    'rgba(34, 197, 94, 0.8)',
+                  ],
+                  borderColor: [
+                    'rgba(99, 102, 241, 1)',
+                    'rgba(34, 197, 94, 1)',
+                  ],
+                  borderWidth: 1,
+                },
+              ],
+            };
+
+            // Chart options
+            const chartOptions = {
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'bottom' as const,
+                  labels: {
+                    padding: 20,
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    font: {
+                      size: 12,
+                    },
+                  },
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function (tooltipItem: {
+                      dataIndex: number;
+                      dataset: { data: number[] };
+                      raw: number;
+                    }) {
+                      const value = tooltipItem.raw || 0;
+                      const percentage =
+                        totalVotes > 0
+                          ? Math.round((value / totalVotes) * 100)
+                          : 0;
+                      return `${value} votes (${percentage}%)`;
+                    },
+                  },
+                },
+              },
+            } as ChartOptions<'pie'>;
+
             return (
               <Card key={pair.id} className="overflow-hidden">
                 <CardHeader className="bg-gray-50 p-4">
-                  <h3 className="text-lg font-medium">Result #{pair.id}</h3>
+                  <h3 className="text-lg font-medium">
+                    {pair.optionA} vs {pair.optionB}
+                  </h3>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <div className="font-medium">{pair.optionA}</div>
-                      <div className="h-4 w-full overflow-hidden rounded-full bg-gray-200">
-                        <div
-                          className="h-full rounded-full bg-secondary-500"
-                          style={{ width: `${percentA}%` }}
-                        ></div>
+                  {totalVotes > 0 ? (
+                    <div className="mx-auto max-w-md">
+                      <div className="mx-auto mb-4 aspect-square w-full max-w-[300px]">
+                        <Pie data={chartData} options={chartOptions} />
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {votesForA} votes ({percentA}%)
+
+                      <div className="mt-4 text-center text-sm text-gray-500">
+                        Total votes: {totalVotes}
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="font-medium">{pair.optionB}</div>
-                      <div className="h-4 w-full overflow-hidden rounded-full bg-gray-200">
-                        <div
-                          className="h-full rounded-full bg-green-500"
-                          style={{ width: `${percentB}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {votesForB} votes ({percentB}%)
-                      </div>
+                  ) : (
+                    <div className="py-8 text-center text-gray-500">
+                      No votes yet
                     </div>
-                  </div>
-
-                  <div className="mt-4 text-center text-sm text-gray-500">
-                    Total votes: {totalVotes}
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             );

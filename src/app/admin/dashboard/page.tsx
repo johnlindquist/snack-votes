@@ -416,6 +416,52 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeletePoll = async (pollId: number) => {
+    console.log('Deleting poll:', pollId);
+    if (
+      !confirm(
+        'Are you sure you want to delete this poll and all associated data? This action cannot be undone.',
+      )
+    ) {
+      console.log('Poll deletion cancelled by user');
+      return;
+    }
+
+    const sessionData = sessionStorage.getItem('adminSession');
+    if (!sessionData) {
+      console.log('No session data found when deleting poll');
+      return;
+    }
+    try {
+      const { authToken } = JSON.parse(sessionData);
+      console.log('Using auth token for delete poll:', authToken);
+      const timestamp = new Date().getTime();
+      const res = await fetch(`/api/admin/polls/${pollId}?t=${timestamp}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: authToken,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+          'X-Cache-Bust': timestamp.toString(),
+        },
+      });
+      console.log('Delete poll API response status:', res.status);
+
+      if (res.ok) {
+        console.log('Poll deleted successfully, refreshing data');
+        fetchPolls();
+        toast.success('Poll deleted successfully');
+      } else {
+        console.error('Failed to delete poll:', res.statusText);
+        toast.error('Failed to delete poll');
+      }
+    } catch (error) {
+      console.error('Error in handleDeletePoll:', error);
+      toast.error('Error deleting poll');
+    }
+  };
+
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Creating group:', {
@@ -775,6 +821,13 @@ export default function Dashboard() {
                               Close
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeletePoll(poll.id)}
+                          >
+                            Delete
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"

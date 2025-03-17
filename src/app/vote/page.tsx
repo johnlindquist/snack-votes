@@ -381,7 +381,7 @@ export default function VotePage() {
           />
 
           <div className="mb-10">
-            <Header title="Vote for Your Favorite Snacks" />
+            <Header title="Choose Your Your Favorite Snacks" />
           </div>
 
           {/* Diagnostic information */}
