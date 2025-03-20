@@ -8,7 +8,6 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { HamburgerMenu } from '@/components/ui/hamburger-menu';
 import { Toaster, toast } from 'react-hot-toast';
 import confetti from 'canvas-confetti';
-import Link from 'next/link';
 
 type Pair = {
   id: number;
@@ -77,6 +76,10 @@ const triggerConfetti = () => {
 };
 
 export default function VotePage() {
+  // Add a component to display the active poll in the main page for debugging
+  const [activePollName, setActivePollName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [_error, setError] = useState<string | null>(null);
   const [activePoll, setActivePoll] = useState<Poll | null>(null);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [votes, setVotes] = useState<{ [key: number]: string }>({});
@@ -86,7 +89,6 @@ export default function VotePage() {
   const [completedVoterName, setCompletedVoterName] = useState('');
   const [formKey, setFormKey] = useState(Date.now());
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 3;
@@ -96,7 +98,50 @@ export default function VotePage() {
     return process.env.NODE_ENV === 'development';
   };
 
-  const fetchActivePoll = useCallback(() => {
+  useEffect(() => {
+    const fetchActivePoll = async () => {
+      try {
+        console.log('Home page: Fetching active poll info');
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/polls/active?t=${timestamp}`, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+            // Add a random header value to bypass cache
+            'X-Cache-Bust': timestamp.toString(),
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            console.log('Home page: No active poll found');
+            setActivePollName(null);
+            setIsLoading(false);
+            return;
+          }
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Home page: Active poll retrieved:', data.title);
+        setActivePollName(data.title);
+        setActivePoll(data);
+        setPairs(data.pairs || []);
+      } catch (err) {
+        console.error('Home page: Error fetching active poll:', err);
+        setError(
+          `Failed to fetch active poll: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchActivePoll();
+  }, []);
+
+  const fetchActivePollWithRetry = useCallback(() => {
     console.log('************************');
     console.log(
       `Fetching active poll from client - (Attempt ${retryCount + 1}/${maxRetries + 1})`,
@@ -192,18 +237,11 @@ export default function VotePage() {
     return () => clearTimeout(fetchTimeout);
   }, [retryCount]);
 
-  // Initial fetch on component mount
-  useEffect(() => {
-    console.log('VotePage component mounted');
-    console.log('Environment:', process.env.NODE_ENV);
-    fetchActivePoll();
-  }, [fetchActivePoll]);
-
   // Retry logic
   const handleRetry = () => {
     if (retryCount < maxRetries) {
       setRetryCount((prev) => prev + 1);
-      fetchActivePoll();
+      fetchActivePollWithRetry();
     } else {
       console.error('Maximum retry attempts reached');
       setFetchError('Maximum retry attempts reached. Please try again later.');
@@ -248,291 +286,236 @@ export default function VotePage() {
     // Check if all pairs have been voted on
     const unvotedPairs = allPairs.filter((pair) => !votes[pair.id]);
     if (unvotedPairs.length > 0) {
-      setFormError('Please vote on all pairs before submitting!');
+      setFormError(`Please select an option for all ${allPairs.length} pairs`);
       return;
     }
 
-    // Build vote objects
-    const voteArray = Object.keys(votes).map((pairId) => ({
-      pairId: Number(pairId),
-      selection: votes[Number(pairId)],
-    }));
+    // Prepare the vote data
+    const voteData = {
+      pollId: activePoll.id,
+      voterName: voterName.trim(),
+      votes: Object.entries(votes).map(([pairId, selection]) => ({
+        pairId: parseInt(pairId),
+        selection,
+      })),
+    };
 
-    const response = await fetch('/api/vote', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        votes: voteArray,
-        voterName: voterName.trim(),
-        pollId: activePoll.id,
-      }),
-    });
+    try {
+      const response = await fetch('/api/vote/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(voteData),
+      });
 
-    if (response.ok) {
-      setVotes({});
-      setFormKey(Date.now());
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit vote');
+      }
 
-      setCompletedVoterName(voterName);
-      setShowSuccessModal(true);
+      // Trigger the confetti effect on successful vote
       triggerConfetti();
 
-      setTimeout(() => {
-        setVoterName('');
-        setFormError('');
-        setShowSuccessModal(false);
-        setCompletedVoterName('');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 3000);
-    } else {
-      const errorData = await response.json();
-      toast.error(
-        errorData.error || 'There was an error submitting your votes.',
-        {
-          duration: 4000,
-          style: {
-            background: '#fee2e2',
-            color: '#991b1b',
-            padding: '16px',
-            borderRadius: '8px',
-          },
-        },
-      );
+      // Display success message
+      setCompletedVoterName(voterName.trim());
+      setShowSuccessModal(true);
+      toast.success('Your vote has been recorded!');
+
+      // Reset all form fields
+      setVotes({});
+      setVoterName('');
+      setFormError('');
+      setFormKey(Date.now()); // Reset the form key to force a re-render
+    } catch (error) {
+      console.error('Error submitting vote:', error);
       setFormError(
-        errorData.error || 'There was an error submitting your votes.',
+        `Failed to submit vote: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   };
 
-  // If there's no active poll
-  if (!isLoading && !activePoll) {
-    return (
-      <>
-        <Header />
-        <div className="container mx-auto px-4 py-12">
-          <div className="mx-auto max-w-md text-center">
-            <h2 className="mb-4 text-2xl font-bold">No Active Poll</h2>
-            <p className="mb-6 text-gray-600">
-              There is no active poll available at the moment. Please check back
-              later.
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // If the poll is closed
-  if (!isLoading && activePoll && activePoll.isClosed) {
-    return (
-      <>
-        <Header />
-        <div className="container mx-auto px-4 py-12">
-          <div className="mx-auto max-w-md text-center">
-            <h2 className="mb-4 text-2xl font-bold">{activePoll.title}</h2>
-            <p className="mb-6 text-gray-600">
-              This poll is now closed. Thank you for your interest!
-            </p>
-            <Link href={`/poll/${activePoll.id}`}>
-              <Button>View Results</Button>
-            </Link>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
-      <Toaster />
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative mx-4 w-full max-w-md scale-100 transform rounded-2xl bg-white p-8 shadow-2xl duration-300 animate-in fade-in zoom-in">
-            <div className="space-y-4 text-center">
-              <div className="text-6xl">🎉</div>
-              <h2 className="text-3xl font-bold text-primary">
-                Thanks for voting!
-              </h2>
-              <p className="text-xl text-gray-600">
-                We appreciate your input, {completedVoterName}!
-              </p>
-              <p className="mt-4 text-sm text-gray-500">
-                The form will reset in a moment...
-              </p>
+      {/* Status bar for active poll - always visible regardless of errors */}
+      {!isLoading && (
+        <div className="fixed left-0 right-0 top-0 z-50 bg-primary p-2 text-center text-sm text-white shadow-md">
+          {activePollName ? (
+            <div>
+              <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-green-300"></span>
+              Active Poll: <strong>{activePollName}</strong>
             </div>
-          </div>
+          ) : (
+            <div>
+              <span className="mr-2 inline-block h-2 w-2 rounded-full bg-yellow-300"></span>
+              No Active Poll
+            </div>
+          )}
         </div>
       )}
 
-      <div
-        className={`min-h-screen bg-gray-50 ${showSuccessModal ? 'pointer-events-none opacity-50' : ''}`}
-      >
-        <div className="relative mx-auto max-w-3xl px-4 py-8 sm:px-6">
-          <HamburgerMenu
-            showAdminLink={true}
-            showRefresh={true}
-            showDiagnostics={isDev() || !!fetchError}
-            isDiagnosticsVisible={showDiagnostics}
-            isLoading={isLoading}
-            showDbDebug={true}
-            onRefresh={fetchActivePoll}
-            onToggleDiagnostics={() => setShowDiagnostics(!showDiagnostics)}
-          />
-
-          <div className="mb-10">
-            <Header title="Choose Your Your Favorite Snacks" />
+      {/* Main content with padding to accommodate the status bar */}
+      <div className="pt-10">
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="relative">
+            <Header title={activePoll?.title || 'Snack Voting'} />
+            <HamburgerMenu
+              showDiagnostics={isDev()}
+              isDiagnosticsVisible={showDiagnostics}
+              onToggleDiagnostics={() => setShowDiagnostics(!showDiagnostics)}
+              showRefresh={true}
+              isLoading={isLoading}
+              onRefresh={fetchActivePollWithRetry}
+            />
           </div>
 
-          {/* Diagnostic information */}
-          {showDiagnostics && (
-            <div className="mb-8 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs">
-              <h3 className="mb-2 font-bold">Diagnostic Information:</h3>
-              <p>
-                <strong>Environment:</strong> {process.env.NODE_ENV}
-              </p>
-              <p>
-                <strong>Base URL:</strong>{' '}
-                {typeof window !== 'undefined' ? window.location.origin : 'N/A'}
-              </p>
-              <p>
-                <strong>API URL:</strong>{' '}
-                {typeof window !== 'undefined'
-                  ? `${window.location.origin}/api/polls/active`
-                  : 'N/A'}
-              </p>
-
-              {/* Debug links - only in development */}
-              {isDev() && (
-                <div className="mt-2">
-                  <p>
-                    <strong>Debug Tools:</strong>
-                  </p>
-                  <ul className="mt-1 list-inside list-disc">
-                    <li>
-                      <a
-                        href="/api/debug/db"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-secondary hover:underline"
-                      >
-                        Test Database Connection
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              )}
-
-              <p className="mt-2">
-                <strong>Public Environment Variables:</strong>
-              </p>
-              <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-100 p-2">
-                {JSON.stringify(
-                  Object.keys(process.env)
-                    .filter((key) => key.startsWith('NEXT_PUBLIC_'))
-                    .reduce((obj: Record<string, string>, key) => {
-                      obj[key] = process.env[key] as string;
-                      return obj;
-                    }, {}),
-                  null,
-                  2,
-                )}
-              </pre>
-            </div>
-          )}
-
+          {/* Display loading state */}
           {isLoading && (
-            <div className="my-12 flex items-center justify-center">
-              <div className="rounded-lg bg-white p-8 shadow-md">
-                <div className="flex flex-col items-center">
-                  <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
-                  <p className="mt-4 text-lg font-medium text-slate-700">
-                    Loading snack pairs...
-                  </p>
+            <div className="my-10 text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+              <p className="mt-2 text-gray-600">Loading poll data...</p>
+            </div>
+          )}
+
+          {/* Display fetch error with retry button */}
+          {fetchError && !isLoading && (
+            <Card className="mb-6 border-red-200 bg-red-50">
+              <CardContent className="p-4">
+                <div className="text-center">
+                  <h3 className="mb-2 text-lg font-semibold text-red-700">
+                    Error Loading Poll
+                  </h3>
+                  <p className="mb-4 text-red-600">{fetchError}</p>
+                  <Button
+                    onClick={handleRetry}
+                    variant="destructive"
+                    className="mx-auto"
+                    disabled={retryCount >= maxRetries}
+                  >
+                    Retry
+                  </Button>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
-          {fetchError && (
-            <div className="my-8 rounded-lg bg-red-50 p-6 text-center shadow-sm">
-              <p className="text-lg font-medium text-red-700">
-                Error: {fetchError}
-              </p>
-              <p className="mt-2 text-sm text-red-600">
-                Please try refreshing the page or contact support if the issue
-                persists.
-              </p>
-
-              {retryCount < maxRetries && (
-                <button
-                  onClick={handleRetry}
-                  className="mt-4 rounded-full bg-red-100 px-6 py-2 text-sm font-medium text-red-800 transition-colors hover:bg-red-200"
-                >
-                  Retry ({retryCount}/{maxRetries})
-                </button>
-              )}
-
-              <pre className="mt-4 max-h-40 overflow-auto rounded bg-red-100 p-2 text-xs text-red-800">
-                {fetchError}
-              </pre>
-            </div>
+          {/* Display when no active poll is available */}
+          {!isLoading && !fetchError && !activePoll && (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <h2 className="mb-2 text-xl font-semibold">
+                  No Active Poll Available
+                </h2>
+                <p className="mb-4 text-gray-600">
+                  There is currently no active poll. Please check back later.
+                </p>
+              </CardContent>
+            </Card>
           )}
 
-          {!isLoading && !fetchError && pairs.length === 0 && (
-            <div className="my-12 rounded-lg bg-yellow-50 p-8 text-center shadow-sm">
-              <p className="text-xl font-medium text-yellow-700">
-                No snack pairs available
-              </p>
-              <p className="mt-2 text-sm text-yellow-600">
-                Please check back later when voting options are available.
-              </p>
-            </div>
-          )}
+          {/* Display voting form when poll is available */}
+          {!isLoading && !fetchError && activePoll && (
+            <div key={formKey}>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Error message display */}
+                {formError && (
+                  <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+                    {formError}
+                  </div>
+                )}
 
-          {!isLoading && !fetchError && pairs.length > 0 && (
-            <form key={formKey} onSubmit={handleSubmit} className="space-y-12">
-              {activePoll &&
-              activePoll.groups &&
-              activePoll.groups.length > 0 ? (
-                // If we have groups, display pairs by group
-                activePoll.groups.map((group) => (
-                  <div key={group.id} className="mb-12">
-                    <div className="mb-6 flex items-center">
-                      <h2 className="text-2xl font-bold text-primary">
-                        {group.title}
-                      </h2>
-                      <div className="from-primary/30 ml-4 h-px flex-1 bg-gradient-to-r to-transparent"></div>
-                    </div>
-                    <div className="space-y-6">
-                      {group.pairs.map((pair) => (
-                        <Card
-                          key={pair.id}
-                          className="hover:border-primary/50 overflow-hidden transition-all hover:shadow-lg"
-                        >
-                          <CardHeader className="bg-primary/5 py- border-b border-slate-100">
-                            <h3 className="text-md font-medium text-primary">
-                              Choose One:
-                            </h3>
+                {/* Voter name input */}
+                <div className="mb-4">
+                  <label
+                    htmlFor="voterName"
+                    className="mb-2 block font-medium text-gray-700"
+                  >
+                    Your Name
+                  </label>
+                  <input
+                    type="text"
+                    id="voterName"
+                    value={voterName}
+                    onChange={(e) => setVoterName(e.target.value)}
+                    className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-primary"
+                    placeholder="Enter your name"
+                    required
+                  />
+                </div>
+
+                {/* Voting section */}
+                <div className="space-y-8">
+                  {/* If the poll has groups, display each group separately */}
+                  {activePoll.groups.length > 0 ? (
+                    activePoll.groups.map((group) => (
+                      <div key={group.id} className="rounded-lg bg-gray-50 p-4">
+                        <h3 className="mb-4 text-lg font-semibold">
+                          {group.title}
+                        </h3>
+                        <div className="space-y-4">
+                          {group.pairs.map((pair) => (
+                            <Card key={pair.id} className="overflow-hidden">
+                              <CardHeader className="bg-gray-100 py-3">
+                                <h4 className="text-sm font-medium">
+                                  Select one option:
+                                </h4>
+                              </CardHeader>
+                              <CardContent className="p-4">
+                                <ToggleGroup
+                                  type="single"
+                                  value={votes[pair.id] || ''}
+                                  onValueChange={(value) =>
+                                    handleChange(pair.id, value)
+                                  }
+                                  className="flex flex-col space-y-2"
+                                >
+                                  <ToggleGroupItem
+                                    value={pair.optionA}
+                                    className="justify-start px-4 py-2 text-left"
+                                  >
+                                    {pair.optionA}
+                                  </ToggleGroupItem>
+                                  <ToggleGroupItem
+                                    value={pair.optionB}
+                                    className="justify-start px-4 py-2 text-left"
+                                  >
+                                    {pair.optionB}
+                                  </ToggleGroupItem>
+                                </ToggleGroup>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    // For backward compatibility - display pairs without groups
+                    <div className="space-y-4">
+                      {pairs.map((pair) => (
+                        <Card key={pair.id} className="overflow-hidden">
+                          <CardHeader className="bg-gray-100 py-3">
+                            <h4 className="text-sm font-medium">
+                              Select one option:
+                            </h4>
                           </CardHeader>
-                          <CardContent>
+                          <CardContent className="p-4">
                             <ToggleGroup
                               type="single"
                               value={votes[pair.id] || ''}
                               onValueChange={(value) =>
                                 handleChange(pair.id, value)
                               }
-                              className="flex flex-col gap-3 sm:flex-row"
+                              className="flex flex-col space-y-2"
                             >
                               <ToggleGroupItem
                                 value={pair.optionA}
-                                className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
+                                className="justify-start px-4 py-2 text-left"
                               >
                                 {pair.optionA}
                               </ToggleGroupItem>
                               <ToggleGroupItem
                                 value={pair.optionB}
-                                className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
+                                className="justify-start px-4 py-2 text-left"
                               >
                                 {pair.optionB}
                               </ToggleGroupItem>
@@ -541,94 +524,94 @@ export default function VotePage() {
                         </Card>
                       ))}
                     </div>
-                  </div>
-                ))
-              ) : (
-                // Fallback to flat list of pairs if no groups
-                <div className="space-y-6">
-                  {activePoll &&
-                    activePoll.pairs.map((pair) => (
-                      <Card
-                        key={pair.id}
-                        className="overflow-hidden transition-all hover:border-primary hover:shadow-lg"
-                      >
-                        <CardHeader className="bg-primary/5 border-b border-slate-100 py-4">
-                          <h3 className="text-sm font-medium text-primary">
-                            Choose One:
-                          </h3>
-                        </CardHeader>
-                        <CardContent className="pb-4 pt-6">
-                          <ToggleGroup
-                            type="single"
-                            value={votes[pair.id] || ''}
-                            onValueChange={(value) =>
-                              handleChange(pair.id, value)
-                            }
-                            className="flex flex-col gap-3 sm:flex-row"
-                          >
-                            <ToggleGroupItem
-                              value={pair.optionA}
-                              className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
-                            >
-                              {pair.optionA}
-                            </ToggleGroupItem>
-                            <ToggleGroupItem
-                              value={pair.optionB}
-                              className="h-auto flex-1 rounded-lg py-4 text-base transition-all"
-                            >
-                              {pair.optionB}
-                            </ToggleGroupItem>
-                          </ToggleGroup>
-                        </CardContent>
-                      </Card>
-                    ))}
+                  )}
                 </div>
-              )}
 
-              <Card className="border-secondary-100 shadow-md transition-all hover:shadow-lg">
-                <CardContent className="py-6">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="voterName"
-                      className="block text-sm font-medium text-slate-700"
-                    >
-                      Your Name
-                    </label>
-                    <input
-                      id="voterName"
-                      type="text"
-                      value={voterName}
-                      onChange={(e) => {
-                        setVoterName(e.target.value);
-                        setFormError('');
-                      }}
-                      className="w-full rounded-lg border border-slate-200 p-3 shadow-sm outline-none focus:border-transparent focus:ring-2 focus:ring-primary"
-                      required
-                      placeholder="Enter your name"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {formError && (
-                <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-center shadow-sm">
-                  <p className="font-medium text-red-600">{formError}</p>
+                {/* Submit button */}
+                <div className="mt-6 text-center">
+                  <Button type="submit" className="w-full sm:w-auto" size="lg">
+                    Submit Vote
+                  </Button>
                 </div>
-              )}
+              </form>
+            </div>
+          )}
 
-              <div className="py-6 text-center">
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="rounded-full px-10 py-6 text-lg font-medium shadow-md transition-all hover:shadow-lg"
-                >
-                  Submit Votes
-                </Button>
+          {/* Success Modal */}
+          {showSuccessModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="w-11/12 max-w-md rounded-lg bg-white p-6 shadow-xl">
+                <h2 className="mb-4 text-center text-2xl font-bold text-green-600">
+                  Thank You!
+                </h2>
+                <p className="mb-6 text-center text-lg">
+                  {completedVoterName}, your vote has been recorded
+                  successfully.
+                </p>
+                <div className="flex justify-center">
+                  <Button
+                    onClick={() => setShowSuccessModal(false)}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
-            </form>
+            </div>
+          )}
+
+          {/* Show diagnostics in development mode */}
+          {isDev() && showDiagnostics && (
+            <div className="mt-8 rounded-md border border-gray-300 bg-gray-50 p-4">
+              <h3 className="mb-2 font-semibold">Debug Info:</h3>
+              <pre className="overflow-x-auto text-xs">
+                {JSON.stringify(
+                  {
+                    activePoll: activePoll
+                      ? {
+                          id: activePoll.id,
+                          title: activePoll.title,
+                          isActive: activePoll.isActive,
+                          isClosed: activePoll.isClosed,
+                          groupsCount: activePoll.groups.length,
+                          pairsCount: activePoll.pairs.length,
+                        }
+                      : null,
+                    votes,
+                    retryCount,
+                    formKey,
+                  },
+                  null,
+                  2,
+                )}
+              </pre>
+              <Button
+                onClick={() => setShowDiagnostics(false)}
+                variant="outline"
+                className="mt-2"
+                size="sm"
+              >
+                Hide Debug
+              </Button>
+            </div>
+          )}
+
+          {/* Debug button - only in development */}
+          {isDev() && !showDiagnostics && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setShowDiagnostics(true)}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Show Debug Info
+              </button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Toaster for notifications */}
+      <Toaster position="bottom-center" />
     </>
   );
 }

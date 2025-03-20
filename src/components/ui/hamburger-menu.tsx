@@ -39,6 +39,14 @@ export function HamburgerMenu({
       </SheetTrigger>
       <SheetContent side="right" className="w-[240px] sm:w-[300px]">
         <nav className="mt-8 flex flex-col space-y-4">
+          <NavButton href="/" onClick={() => setOpen(false)}>
+            Results
+          </NavButton>
+
+          <NavButton href="/vote" onClick={() => setOpen(false)}>
+            Vote
+          </NavButton>
+
           {showAdminLink && (
             <NavButton href="/admin/login" onClick={() => setOpen(false)}>
               Admin Login
